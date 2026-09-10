@@ -13,6 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from config.settings import settings
 from routes.location_routes import router as location_router
 from routes.map_routes import router as map_router
+from routes.production_routes import router as production_router
+from routes.recommendation_routes import router as recommendation_router
+from routes.auth_routes import router as auth_router
+from routes.dashboard_routes import router as dashboard_router
 
 # Initialize the FastAPI application instance
 app = FastAPI(
@@ -54,6 +58,48 @@ async def health_check():
 # ------------------------------------------------------------------------------
 app.include_router(location_router, prefix=settings.API_PREFIX)
 app.include_router(map_router, prefix=settings.API_PREFIX)
+app.include_router(production_router, prefix=settings.API_PREFIX)
+app.include_router(recommendation_router, prefix=settings.API_PREFIX)
+app.include_router(auth_router, prefix=settings.API_PREFIX)
+app.include_router(dashboard_router, prefix=settings.API_PREFIX)
+
+from routes.location_routes import predict_ore_potential
+from schemas.location_schema import LocationRequest, PredictionResponse
+
+@app.post(
+    f"{settings.API_PREFIX}/predict-ore",
+    response_model=PredictionResponse,
+    tags=["ML Prediction"],
+    summary="Predict Manganese deposit potential (direct endpoint)"
+)
+async def predict_ore_direct(payload: LocationRequest) -> PredictionResponse:
+    """Direct alias for /api/predict-ore specified by master prompt."""
+    return await predict_ore_potential(payload)
+
+
+@app.get(
+    f"{settings.API_PREFIX}/manganese/history",
+    tags=["ML Prediction"],
+    summary="Get stored Manganese ore prediction history from MySQL"
+)
+async def get_manganese_history_endpoint(
+    limit: int = 50
+):
+    """Returns past completed Manganese Ore predictions stored in MySQL."""
+    try:
+        from services.db_service import db_service
+        records = db_service.get_manganese_history(limit=limit)
+        return {
+            "success": True,
+            "count": len(records),
+            "predictions": records
+        }
+    except Exception as exc:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not retrieve manganese history: {exc}"
+        )
 
 
 # Root welcome route for quick browser verification

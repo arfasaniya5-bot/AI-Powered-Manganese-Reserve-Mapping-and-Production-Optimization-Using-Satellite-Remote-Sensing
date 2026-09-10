@@ -21,7 +21,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 8000, // 8-second timeout to detect unreachable backend quickly
+  timeout: 60000, // 60-second timeout allows Google Earth Engine remote-sensing queries to finish cleanly
 });
 
 /**
@@ -39,6 +39,13 @@ export const sendLocationCoordinates = async (latitude, longitude) => {
     });
     return response.data;
   } catch (error) {
+    // Check if timeout occurred
+    if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+      throw new Error(
+        'Google Earth Engine query is taking longer than expected. Please retry in a few moments.'
+      );
+    }
+
     // Detailed error categorization for clear user feedback:
     if (!error.response) {
       // Network error / Server down (no HTTP response received)
@@ -60,6 +67,77 @@ export const sendLocationCoordinates = async (latitude, longitude) => {
         `Server returned error ${error.response.status}: ${error.response.statusText || 'Unable to validate location'}`
       );
     }
+  }
+};
+
+/**
+ * Calls POST /api/predict-ore to run real-time AIML manganese deposit prediction.
+ */
+export const predictPotential = async (latitude, longitude) => {
+  try {
+    const response = await apiClient.post('/api/predict-ore', {
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+    });
+    return response.data;
+  } catch (error) {
+    if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+      throw new Error(
+        'Google Earth Engine query is taking longer than expected. Please retry in a few moments.'
+      );
+    }
+    if (!error.response) {
+      throw new Error('Cannot connect to backend server on http://localhost:8000.');
+    }
+    const detail = error.response.data?.detail;
+    throw new Error(typeof detail === 'string' ? detail : 'Prediction request failed.');
+  }
+};
+
+
+/**
+ * Retrieves satellite, terrain, and environmental features for a coordinate.
+ * Calls GET /api/location/features?latitude=...&longitude=...
+ */
+export const fetchLocationFeatures = async (latitude, longitude) => {
+  try {
+    const response = await apiClient.get('/api/location/features', {
+      params: { latitude: Number(latitude), longitude: Number(longitude) },
+    });
+    return response.data;
+  } catch (error) {
+    if (!error.response) {
+      throw new Error('Cannot connect to backend server.');
+    }
+    throw new Error(error.response.data?.detail || 'Failed to retrieve features.');
+  }
+};
+
+/**
+ * Fetches training dataset metadata and schema readiness.
+ * Calls GET /api/location/dataset-info
+ */
+export const fetchDatasetInfo = async () => {
+  try {
+    const response = await apiClient.get('/api/location/dataset-info');
+    return response.data;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Looks up historical survey data near a coordinate in the training dataset.
+ * Calls GET /api/location/dataset-lookup
+ */
+export const lookupDatasetReference = async (latitude, longitude, tolerance = 0.05) => {
+  try {
+    const response = await apiClient.get('/api/location/dataset-lookup', {
+      params: { latitude: Number(latitude), longitude: Number(longitude), tolerance },
+    });
+    return response.data;
+  } catch {
+    return null;
   }
 };
 

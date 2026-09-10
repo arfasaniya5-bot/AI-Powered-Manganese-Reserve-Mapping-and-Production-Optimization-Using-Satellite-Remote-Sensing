@@ -13,6 +13,7 @@ Why both client-side AND server-side validation exist:
   before processing them or storing them in a database.
 """
 
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -68,3 +69,36 @@ class LocationResponse(BaseModel):
             }
         }
     }
+
+
+class PredictionResponse(BaseModel):
+    """
+    Standardized response schema for ML manganese ore prediction endpoint.
+    Matches the required contract for POST /api/predict-ore.
+    """
+    success: bool = Field(True, description="Indicates successful endpoint execution")
+    latitude: float = Field(..., description="Target latitude")
+    longitude: float = Field(..., description="Target longitude")
+    prediction: Optional[int] = Field(None, description="Predicted class (1: Presence, 0: Absence)")
+    probability: Optional[float] = Field(None, description="Model probability score (0.0 to 1.0)")
+    probability_percentage: Optional[float] = Field(None, description="Model probability expressed as a percentage (e.g. 87.0)")
+    potential: Optional[str] = Field(None, description="Potential category: High Potential, Medium Potential, Low Potential")
+    key_factors: list[str] = Field(default_factory=list, description="Significant geological or spectral drivers")
+    message: str = Field(
+        "Prediction completed successfully.",
+        description="Status message"
+    )
+
+
+class DatasetInfoResponse(BaseModel):
+    """
+    Standardized schema reporting dataset readiness and structural properties.
+    """
+    success: bool = Field(True)
+    file_name: str
+    total_rows: int
+    total_columns: int
+    columns: list[str]
+    unique_mines: list[str]
+    feature_columns: list[str]
+    status: str

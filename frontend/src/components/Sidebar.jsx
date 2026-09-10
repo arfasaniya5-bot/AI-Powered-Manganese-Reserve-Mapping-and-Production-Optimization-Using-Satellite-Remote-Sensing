@@ -69,6 +69,19 @@ const Sidebar = () => {
             <span className="nav-label">Dashboard</span>
           </NavLink>
 
+          {/* Production Forecast */}
+          <NavLink
+            to="/production-forecast"
+            className={({ isActive }) =>
+              `nav-link ${isActive ? 'nav-link-active' : ''}`
+            }
+          >
+            <svg className="nav-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z" />
+            </svg>
+            <span className="nav-label">Production Forecast</span>
+          </NavLink>
+
           {/* 2. Ore Prediction */}
           <NavLink
             to="/ore-prediction"
@@ -82,17 +95,12 @@ const Sidebar = () => {
             <span className="nav-label">Ore Prediction</span>
           </NavLink>
 
-          {/* 3. Production Analysis (Future module) */}
+          {/* 3. Production Analysis */}
           <NavLink
             to="/production-analysis"
             className={({ isActive }) =>
               `nav-link ${isActive ? 'nav-link-active' : ''}`
             }
-            onClick={(e) => {
-              // Informational placeholder until module is built
-              e.preventDefault();
-              alert('Production Analysis module is scheduled for next release.');
-            }}
           >
             <svg className="nav-icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z" />
@@ -100,16 +108,12 @@ const Sidebar = () => {
             <span className="nav-label">Production Analysis</span>
           </NavLink>
 
-          {/* 4. Recommendations (Future module) */}
+          {/* 4. Recommendations */}
           <NavLink
             to="/recommendations"
             className={({ isActive }) =>
               `nav-link ${isActive ? 'nav-link-active' : ''}`
             }
-            onClick={(e) => {
-              e.preventDefault();
-              alert('Recommendations module is scheduled for next release.');
-            }}
           >
             <svg className="nav-icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />

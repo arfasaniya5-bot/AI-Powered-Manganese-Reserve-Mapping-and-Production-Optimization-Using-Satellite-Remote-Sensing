@@ -43,10 +43,11 @@ class Settings:
         if origin.strip()
     ]
 
-    # Future Google Earth Engine (GEE) credentials (kept strictly on server side)
-    GEE_SERVICE_ACCOUNT_KEY_PATH: str = os.getenv("GEE_SERVICE_ACCOUNT_KEY_PATH", "")
-    GEE_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GEE_SERVICE_ACCOUNT_EMAIL", "")
+    # Google Earth Engine (GEE) credentials (kept strictly on server side)
     GEE_PROJECT_ID: str = os.getenv("GEE_PROJECT_ID", "")
+    GEE_SERVICE_ACCOUNT: str = os.getenv("GEE_SERVICE_ACCOUNT", os.getenv("GEE_SERVICE_ACCOUNT_EMAIL", ""))
+    GEE_PRIVATE_KEY: str = os.getenv("GEE_PRIVATE_KEY", "")
+    GEE_SERVICE_ACCOUNT_KEY_PATH: str = os.getenv("GEE_SERVICE_ACCOUNT_KEY_PATH", "")
 
 
 # Singleton instance of application settings

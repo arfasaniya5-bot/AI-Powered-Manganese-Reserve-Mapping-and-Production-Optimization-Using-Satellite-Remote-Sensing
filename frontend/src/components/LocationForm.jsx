@@ -1,51 +1,98 @@
 /**
  * LocationForm Component
  * ----------------------
- * Allows the user to enter geographic coordinates (Latitude and Longitude)
- * and trigger potential prediction.
+ * Provides coordinate input fields (Latitude and Longitude) and a placeholder Predict Potential button.
  * 
  * Strict constraints adhered to:
  * - Contains ONLY Latitude, Longitude, and "Predict Potential" button.
  * - Elevation, Rock Type, Soil Type, Magnetic Anomaly, Satellite Feature Index,
  *   Upload CSV, and "View on Map" are strictly excluded from code.
  * 
- * Client-Side Validation Logic:
- * Before sending any request to the FastAPI backend, this component verifies:
- * 1. Both fields are non-empty.
- * 2. Both values parse as valid finite numbers.
- * 3. Latitude is between -90.0 and +90.0.
- * 4. Longitude is between -180.0 and +180.0.
+ * Automatic Map Update Behavior:
+ * - Latitude and Longitude default to 18.5234 and 79.1234.
+ * - Whenever the user changes either value, this component validates the number client-side.
+ * - If valid, it immediately informs the parent component via `onCoordinatesChange(lat, lon)`.
+ * - The map updates automatically WITHOUT requiring the user to click any button!
  * 
- * Why validate on client-side?
- * Immediate UI feedback prevents invalid network calls and gives the user
- * instant corrections. The backend still performs secondary validation via Pydantic.
+ * Predict Potential Button Behavior:
+ * - Kept visible as required by the UI specification.
+ * - Does not perform AI/ML prediction or call fake APIs.
+ * - If clicked, displays: "AI/ML prediction will be connected later."
  */
 
 import React, { useState } from 'react';
 
-const LocationForm = ({ onSubmit, isLoading, serverError }) => {
-  // Controlled input states for coordinates
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
+const LocationForm = ({
+  latitude,
+  longitude,
+  onCoordinatesChange,
+  onPredict,
+  isLoading = false,
+  serverError = '',
+}) => {
+  // Local input string states allow smooth typing (e.g. while typing decimals "18.")
+  const [latInput, setLatInput] = useState(String(latitude ?? '18.5234'));
+  const [lonInput, setLonInput] = useState(String(longitude ?? '79.1234'));
   const [clientError, setClientError] = useState('');
 
-  const handleSubmit = (e) => {
+  // Validate numbers and propagate changes locally to the parent and map
+  const validateAndPropagate = (newLatStr, newLonStr) => {
+    setClientError('');
+
+    const trimmedLat = newLatStr.trim();
+    const trimmedLon = newLonStr.trim();
+
+    // If either field is currently blank during typing, don't crash or error immediately
+    if (!trimmedLat || !trimmedLon) {
+      return;
+    }
+
+    const latNum = parseFloat(trimmedLat);
+    const lonNum = parseFloat(trimmedLon);
+
+    if (isNaN(latNum) || isNaN(lonNum)) {
+      return;
+    }
+
+    // Boundary check: update map locally only if within valid geographic coordinates
+    if (latNum >= -90 && latNum <= 90 && lonNum >= -180 && lonNum <= 180) {
+      onCoordinatesChange(latNum, lonNum);
+    }
+  };
+
+  // Handler for latitude change
+  const handleLatChange = (e) => {
+    const val = e.target.value;
+    setLatInput(val);
+    validateAndPropagate(val, lonInput);
+  };
+
+  // Handler for longitude change
+  const handleLonChange = (e) => {
+    const val = e.target.value;
+    setLonInput(val);
+    validateAndPropagate(latInput, val);
+  };
+
+  // Predict Potential button click handler: initiates FastAPI backend analysis
+  const handlePredictClick = (e) => {
     e.preventDefault();
     setClientError('');
 
-    // 1. Check for empty fields
-    if (!latitude.trim()) {
-      setClientError('Please enter a Latitude value.');
+    const trimmedLat = latInput.trim();
+    const trimmedLon = lonInput.trim();
+
+    if (!trimmedLat) {
+      setClientError('Latitude cannot be empty.');
       return;
     }
-    if (!longitude.trim()) {
-      setClientError('Please enter a Longitude value.');
+    if (!trimmedLon) {
+      setClientError('Longitude cannot be empty.');
       return;
     }
 
-    // 2. Parse numbers
-    const latNum = parseFloat(latitude.trim());
-    const lonNum = parseFloat(longitude.trim());
+    const latNum = parseFloat(trimmedLat);
+    const lonNum = parseFloat(trimmedLon);
 
     if (isNaN(latNum)) {
       setClientError('Latitude must be a valid number.');
@@ -56,7 +103,6 @@ const LocationForm = ({ onSubmit, isLoading, serverError }) => {
       return;
     }
 
-    // 3. Boundary validation
     if (latNum < -90 || latNum > 90) {
       setClientError('Latitude must be between -90 and 90 degrees.');
       return;
@@ -66,8 +112,10 @@ const LocationForm = ({ onSubmit, isLoading, serverError }) => {
       return;
     }
 
-    // Coordinates are valid on the client side: trigger parent submit handler
-    onSubmit(latNum, lonNum);
+    // Trigger backend analysis
+    if (onPredict) {
+      onPredict(latNum, lonNum);
+    }
   };
 
   const displayError = clientError || serverError;
@@ -88,7 +136,7 @@ const LocationForm = ({ onSubmit, isLoading, serverError }) => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="coordinates-form" noValidate>
+      <form onSubmit={handlePredictClick} className="coordinates-form" noValidate>
         {/* Latitude Input Field */}
         <div className="form-group">
           <label htmlFor="latitude-input" className="input-label">
@@ -104,9 +152,8 @@ const LocationForm = ({ onSubmit, isLoading, serverError }) => {
               step="any"
               className="coord-input"
               placeholder="18.5234"
-              value={latitude}
-              onChange={(e) => setLatitude(e.target.value)}
-              disabled={isLoading}
+              value={latInput}
+              onChange={handleLatChange}
               required
             />
           </div>
@@ -127,26 +174,24 @@ const LocationForm = ({ onSubmit, isLoading, serverError }) => {
               step="any"
               className="coord-input"
               placeholder="79.1234"
-              value={longitude}
-              onChange={(e) => setLongitude(e.target.value)}
-              disabled={isLoading}
+              value={lonInput}
+              onChange={handleLonChange}
               required
             />
           </div>
         </div>
 
-        {/* Submit Button */}
+        {/* Predict Potential Button (Placeholder: does not run prediction now) */}
         <div className="form-actions">
           <button
             type="submit"
             className="btn-predict"
-            disabled={isLoading}
-            aria-busy={isLoading}
+            title="AI/ML prediction will be connected later."
           >
             {isLoading ? (
               <>
                 <span className="spinner" aria-hidden="true"></span>
-                <span>Validating...</span>
+                <span>Connecting...</span>
               </>
             ) : (
               <>
