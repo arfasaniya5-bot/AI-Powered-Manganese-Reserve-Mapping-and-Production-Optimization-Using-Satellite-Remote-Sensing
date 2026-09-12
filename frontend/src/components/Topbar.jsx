@@ -3,10 +3,8 @@
  * ----------------
  * Renders the top navigation header across the application.
  * 
- * Features matching reference images:
- * - Search bar with magnifying glass icon and placeholder "Search location, mine or report..."
- * - Notification bell icon with active red indicator dot
- * - Admin profile section displaying user avatar, name "Admin", and dropdown arrow
+ * Features:
+ * - Admin/User profile section displaying user avatar, name, and dropdown menu
  */
 
 import React, { useState } from 'react';
@@ -16,17 +14,9 @@ import { useAuth } from '../context/AuthContext';
 const Topbar = () => {
   const navigate = useNavigate();
   const { currentUser, currentAdmin, logout, isAdmin } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
 
   const displayName = currentUser?.name || currentAdmin?.name || (isAdmin ? 'Admin' : 'MOIL User');
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      alert(`Search for "${searchTerm}" will be supported in a future release.`);
-    }
-  };
 
   const handleLogout = async () => {
     await logout();
@@ -35,35 +25,8 @@ const Topbar = () => {
 
   return (
     <header className="app-topbar">
-      {/* Search Input Bar */}
-      <div className="topbar-search-container">
-        <form onSubmit={handleSearchSubmit} className="search-form">
-          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search location, mine or report..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            aria-label="Search"
-          />
-        </form>
-      </div>
-
-      {/* Right Controls: Notifications & Profile */}
+      {/* Right Controls: Profile */}
       <div className="topbar-actions">
-        {/* Notification Bell with Badge */}
-        <button className="notification-btn" aria-label="Notifications" title="1 new notification">
-          <svg className="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span className="notification-badge" aria-hidden="true"></span>
-        </button>
-
         {/* Profile Section with Logout Dropdown */}
         <div className="profile-menu-wrapper" style={{ position: 'relative' }}>
           <div

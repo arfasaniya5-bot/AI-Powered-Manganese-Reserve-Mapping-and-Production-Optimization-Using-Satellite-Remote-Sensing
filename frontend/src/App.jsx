@@ -57,8 +57,8 @@ const ProtectedAppLayout = () => {
           <Routes>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="ore-prediction" element={<OrePrediction />} />
-            <Route path="production-forecast" element={<ProductionForecast />} />
             <Route path="production-analysis" element={<ProductionForecast />} />
+            <Route path="production-forecast" element={<Navigate to="/production-analysis" replace />} />
             <Route path="recommendations" element={<Recommendations />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
