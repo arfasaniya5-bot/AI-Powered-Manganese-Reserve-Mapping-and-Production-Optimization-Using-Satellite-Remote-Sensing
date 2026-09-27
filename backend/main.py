@@ -17,6 +17,7 @@ from routes.production_routes import router as production_router
 from routes.recommendation_routes import router as recommendation_router
 from routes.auth_routes import router as auth_router
 from routes.dashboard_routes import router as dashboard_router
+from routes.production_dataset_routes import router as production_dataset_router
 
 # Initialize the FastAPI application instance
 app = FastAPI(
@@ -62,9 +63,15 @@ app.include_router(production_router, prefix=settings.API_PREFIX)
 app.include_router(recommendation_router, prefix=settings.API_PREFIX)
 app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(dashboard_router, prefix=settings.API_PREFIX)
+app.include_router(production_dataset_router, prefix=settings.API_PREFIX)
 
-from routes.location_routes import predict_ore_potential
-from schemas.location_schema import LocationRequest, PredictionResponse
+from routes.location_routes import predict_ore_potential, reverse_geocode_endpoint
+from schemas.location_schema import (
+    LocationRequest,
+    PredictionResponse,
+    ReverseGeocodeRequest,
+    ReverseGeocodeResponse
+)
 
 @app.post(
     f"{settings.API_PREFIX}/predict-ore",
@@ -75,6 +82,36 @@ from schemas.location_schema import LocationRequest, PredictionResponse
 async def predict_ore_direct(payload: LocationRequest) -> PredictionResponse:
     """Direct alias for /api/predict-ore specified by master prompt."""
     return await predict_ore_potential(payload)
+
+
+@app.post(
+    f"{settings.API_PREFIX}/reverse-geocode",
+    response_model=ReverseGeocodeResponse,
+    tags=["Location"],
+    summary="Reverse geocode coordinates into State, District, and Village (direct endpoint)"
+)
+async def reverse_geocode_direct(payload: ReverseGeocodeRequest) -> ReverseGeocodeResponse:
+    """Direct alias for /api/reverse-geocode specified by master prompt."""
+    return await reverse_geocode_endpoint(payload)
+
+
+from routes.production_routes import get_weather_forecast
+from schemas.production_schema import WeatherForecastResponse
+
+@app.get(
+    f"{settings.API_PREFIX}/weather-forecast",
+    response_model=WeatherForecastResponse,
+    tags=["Production Analysis"],
+    summary="Get live Open-Meteo weather forecast and soil moisture (direct endpoint)"
+)
+async def weather_forecast_direct(
+    mine: str = None,
+    latitude: float = None,
+    longitude: float = None,
+    date: str = None
+) -> WeatherForecastResponse:
+    """Direct alias for /api/weather-forecast specified by master prompt."""
+    return await get_weather_forecast(mine=mine, latitude=latitude, longitude=longitude, date=date)
 
 
 @app.get(

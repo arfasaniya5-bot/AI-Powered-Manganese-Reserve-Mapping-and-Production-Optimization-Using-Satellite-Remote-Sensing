@@ -96,6 +96,33 @@ export const predictPotential = async (latitude, longitude) => {
 
 
 /**
+ * Reverse geocodes coordinates into State, District, and Village.
+ * Calls POST /api/reverse-geocode
+ *
+ * @param {number} latitude - Target latitude
+ * @param {number} longitude - Target longitude
+ * @returns {Promise<{state: string, district: string, village: string}>}
+ */
+export const reverseGeocode = async (latitude, longitude) => {
+  try {
+    const response = await apiClient.post('/api/reverse-geocode', {
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+    });
+    return response.data;
+  } catch (error) {
+    console.warn('[ReverseGeocode] Request failed, falling back:', error?.message);
+    return {
+      state: 'Not available',
+      district: 'Not available',
+      village: 'Not available',
+    };
+  }
+};
+
+
+
+/**
  * Retrieves satellite, terrain, and environmental features for a coordinate.
  * Calls GET /api/location/features?latitude=...&longitude=...
  */

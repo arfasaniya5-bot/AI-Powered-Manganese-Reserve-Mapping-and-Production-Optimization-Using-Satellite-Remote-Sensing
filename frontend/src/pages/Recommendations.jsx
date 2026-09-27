@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchLatestRecommendations, generateRecommendations } from '../services/recommendationService';
+import {
+  fetchLatestRecommendations,
+  generateRecommendations,
+  updateRecommendationStatus
+} from '../services/recommendationService';
 
 /**
  * Recommendations Page
  * --------------------
- * Displays AI/ML + Rule-Based + Knowledge-Based recommendations
- * generated dynamically from the Production Shortfall process.
+ * Simplified, user-friendly recommendations module for GeoMineAI.
  * 
- * Design strictly matches reference screenshot (media_1789023564838.jpg).
+ * Organized strictly into 6 clear sections:
+ * 1. Production Status
+ * 2. Possible Reasons
+ * 3. What You Can Do
+ * 4. Similar Past Cases
+ * 5. Action Status
+ * 6. Next Step
  */
 const Recommendations = () => {
   const location = useLocation();
@@ -17,21 +26,35 @@ const Recommendations = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [cardStatuses, setCardStatuses] = useState({});
+  const [updatingId, setUpdatingId] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // If state passed from Production Forecast Step 4
         if (location.state && location.state.predictionData) {
           const res = await generateRecommendations(location.state.predictionData);
           setData(res);
+          if (res?.cards) {
+            const initialStatuses = {};
+            res.cards.forEach((c) => {
+              initialStatuses[c.id] = c.is_escalated ? 'Unsuccessful' : 'Pending';
+            });
+            setCardStatuses(initialStatuses);
+          }
         } else {
-          // Fetch latest stored recommendation from MySQL
           const res = await fetchLatestRecommendations();
           if (res && res.success !== false) {
             setData(res);
+            if (res?.cards) {
+              const initialStatuses = {};
+              res.cards.forEach((c) => {
+                initialStatuses[c.id] = c.is_escalated ? 'Unsuccessful' : 'Pending';
+              });
+              setCardStatuses(initialStatuses);
+            }
           } else {
             setData(null);
           }
@@ -47,36 +70,60 @@ const Recommendations = () => {
     loadData();
   }, [location.state]);
 
-  // Render SVG icon by icon_type
-  const renderCardIcon = (iconType) => {
-    switch (iconType) {
-      case 'sprout':
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z" />
-          </svg>
-        );
-      case 'gear':
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-          </svg>
-        );
-      case 'weather':
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-          </svg>
-        );
-      case 'drill':
-      case 'target':
-      default:
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-          </svg>
-        );
+  const handleStatusChange = async (cardId, newStatus) => {
+    if (!data?.recommendation_id) {
+      setCardStatuses((prev) => ({ ...prev, [cardId]: newStatus }));
+      return;
     }
+    setUpdatingId(cardId);
+    try {
+      // Map display status to backend status code
+      let backendStatus = 'IN_PROGRESS';
+      let outcome = null;
+      if (newStatus === 'Completed') {
+        backendStatus = 'COMPLETED';
+        outcome = 'RESOLVED';
+      } else if (newStatus === 'Successful') {
+        backendStatus = 'COMPLETED';
+        outcome = 'RESOLVED';
+      } else if (newStatus === 'Unsuccessful') {
+        backendStatus = 'ESCALATED';
+        outcome = 'FAILED';
+      } else if (newStatus === 'In Progress') {
+        backendStatus = 'IN_PROGRESS';
+        outcome = 'PENDING';
+      } else {
+        backendStatus = 'PROPOSED';
+      }
+
+      await updateRecommendationStatus(data.recommendation_id, backendStatus, outcome);
+      setCardStatuses((prev) => ({ ...prev, [cardId]: newStatus }));
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      // Still update UI locally so the user sees their interaction
+      setCardStatuses((prev) => ({ ...prev, [cardId]: newStatus }));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Helper formatting functions
+  const formatStatusText = (status) => {
+    if (!status) return 'Low Risk';
+    const s = status.toUpperCase();
+    if (s.includes('HIGH')) return 'High Risk';
+    if (s.includes('MEDIUM')) return 'Medium Risk';
+    if (s.includes('TARGET')) return 'On Target';
+    return 'Low Risk';
+  };
+
+  const getStatusColorClass = (status) => {
+    if (!status) return 'status-low-risk';
+    const s = status.toUpperCase();
+    if (s.includes('HIGH')) return 'status-high-risk';
+    if (s.includes('MEDIUM')) return 'status-medium-risk';
+    if (s.includes('TARGET')) return 'status-on-target';
+    return 'status-low-risk';
   };
 
   const getPriorityClass = (priority) => {
@@ -86,11 +133,24 @@ const Recommendations = () => {
     return 'priority-low';
   };
 
+  // Strip technical strings from reasons (e.g. "matched with Case..." or similarity percentages)
+  const cleanReasonText = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/\s*\(matched with Case [^)]+\)/gi, '')
+      .replace(/Weather impact score [\d\.]+\s*[-—]?\s*/gi, '')
+      .replace(/\s*\(2025 seasonal pattern used as proxy for this calendar date\)/gi, '')
+      .replace(/[^\x20-\x7E]+/g, ' ')
+      .trim();
+  };
+
   const cards = data?.cards && data.cards.length > 0 ? data.cards : [];
+  const rawReasons = data?.possible_reasons && data.possible_reasons.length > 0 ? data.possible_reasons : [];
+  const cleanReasons = rawReasons.map(cleanReasonText).filter(Boolean);
 
   return (
     <div className="recommendations-page-container">
-      {/* Page Header matching screenshot */}
+      {/* Page Header */}
       <div className="recommendations-header-row">
         <div className="recommendations-title-block">
           <div className="recommendations-bulb-badge">
@@ -103,12 +163,12 @@ const Recommendations = () => {
           <div>
             <h1 className="recommendations-main-title">Recommendations</h1>
             <p className="recommendations-sub-title">
-              AI/ML + Rule Based + Knowledge Based suggestions to improve manganese production
+              Simple suggestions to help your mine meet production targets
             </p>
           </div>
         </div>
 
-        {/* Top Right Badges */}
+        {/* Location & Date Badges */}
         <div className="recommendations-meta-badges">
           <div className="meta-pill-badge">
             <div className="meta-pill-icon blue-pin">
@@ -140,7 +200,7 @@ const Recommendations = () => {
       {loading && (
         <div className="recommendations-state-box">
           <div className="recommendations-spinner"></div>
-          <p>Analyzing production shortfall constraints and generating recommendations...</p>
+          <p>Analyzing mine conditions and preparing practical recommendations...</p>
         </div>
       )}
 
@@ -171,9 +231,9 @@ const Recommendations = () => {
               <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
             </svg>
           </div>
-          <h3 className="empty-title">No production shortfall recommendation is available yet.</h3>
+          <h3 className="empty-title">No similar cases were found. Please review the situation with the site team.</h3>
           <p className="empty-desc">
-            Execute a Production Forecast to run your mine parameters through the recommendation engine.
+            Execute a Production Forecast to check your mine parameters and view suggestions.
           </p>
           <button
             type="button"
@@ -185,51 +245,152 @@ const Recommendations = () => {
         </div>
       )}
 
-      {/* Dynamic Recommendation Cards */}
-      {!loading && !error && data && cards.length > 0 && (
-        <div className="recommendations-cards-list">
-          {cards.map((card, idx) => {
-            const cardClass = card.card_style || (idx % 3 === 0 ? 'green-card' : idx % 3 === 1 ? 'blue-card' : 'purple-card');
-            const iconBg = cardClass.includes('green') ? 'icon-green' : cardClass.includes('purple') ? 'icon-purple' : 'icon-blue';
-            const dotColor = cardClass.includes('green') ? 'dot-green' : cardClass.includes('purple') ? 'dot-purple' : 'dot-blue';
+      {/* Content Area when Data is Ready */}
+      {!loading && !error && data && (
+        <>
+          {/* ==============================================================
+              SECTION 1: PRODUCTION STATUS (Replacing Production Risk)
+              ============================================================== */}
+          <div className="rec-section-card production-status-card">
+            <div className="rec-section-header">
+              <h2 className="rec-section-title">Production Status</h2>
+              <span className={`status-pill ${getStatusColorClass(data.status)}`}>
+                {formatStatusText(data.status)}
+              </span>
+            </div>
 
-            return (
-              <div key={card.id || idx} className={`recommendation-card-item ${cardClass}`}>
-                {/* Priority Pill Badge in Top-Right */}
-                <div className="rec-card-top-row">
-                  <span className={`rec-priority-pill ${getPriorityClass(card.priority)}`}>
-                    {card.priority || 'Medium Priority'}
-                  </span>
-                </div>
-
-                <div className="rec-card-main-content">
-                  {/* Left Circular Icon Badge */}
-                  <div className={`rec-card-icon-badge ${iconBg}`}>
-                    {renderCardIcon(card.icon_type)}
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="rec-card-body">
-                    <h3 className="rec-card-title">{card.title}</h3>
-                    <p className="rec-card-explanation">{card.explanation}</p>
-
-                    {/* Supporting Points Bullets */}
-                    {card.supporting_points && card.supporting_points.length > 0 && (
-                      <ul className="rec-card-bullets-list">
-                        {card.supporting_points.map((point, pIdx) => (
-                          <li key={pIdx} className="rec-card-bullet-item">
-                            <span className={`bullet-dot ${dotColor}`}></span>
-                            <span className="bullet-text">{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
+            <div className="production-status-grid">
+              <div className="status-metric">
+                <span className="metric-label">Target Production</span>
+                <span className="metric-value">
+                  {data.target_production ? Number(data.target_production).toLocaleString() : '10,000'} tonnes
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <div className="status-metric">
+                <span className="metric-label">Expected Production</span>
+                <span className="metric-value">
+                  {data.predicted_production ? Number(data.predicted_production).toLocaleString() : '—'} tonnes
+                </span>
+              </div>
+              <div className="status-metric">
+                <span className="metric-label">Expected Shortfall</span>
+                <span className={`metric-value ${Number(data.shortfall_tonnes) > 0 ? 'text-danger' : 'text-success'}`}>
+                  {Number(data.shortfall_tonnes) > 0
+                    ? `${Number(data.shortfall_tonnes).toLocaleString()} tonnes (${Number(data.shortfall_percentage || 0).toFixed(1)}%)`
+                    : '0 tonnes (On Track)'}
+                </span>
+              </div>
+            </div>
+
+            <p className="status-summary-text">
+              {Number(data.shortfall_tonnes) > 0
+                ? `Production is expected to be ${Number(data.shortfall_tonnes).toLocaleString()} tonnes below the target.`
+                : 'Production is on track to meet the planned target.'}
+            </p>
+          </div>
+
+          {/* ==============================================================
+              SECTION 2: POSSIBLE REASONS (Replacing Contributing Factors)
+              ============================================================== */}
+          <div className="rec-section-card possible-reasons-card">
+            <h2 className="rec-section-title">Possible Reasons</h2>
+            {cleanReasons.length > 0 ? (
+              <ul className="reasons-clean-list">
+                {cleanReasons.map((reason, idx) => (
+                  <li key={idx} className="reason-clean-item">
+                    <span className="reason-bullet" />
+                    <span className="reason-text">{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="no-cases-text">Some information is unavailable.</p>
+            )}
+          </div>
+
+          {/* ==============================================================
+              SECTION 3, 5, 6: WHAT YOU CAN DO (with Action Status & Next Step)
+              ============================================================== */}
+          <div className="rec-section-card what-you-can-do-section">
+            <div className="rec-section-header">
+              <h2 className="rec-section-title">What You Can Do</h2>
+              <span className="section-sub-hint">Recommended actions supported by past mining cases</span>
+            </div>
+
+            {cards.length === 0 ? (
+              <div className="no-actions-notice">
+                <p>No similar cases were found. Please review the situation with the site team.</p>
+              </div>
+            ) : (
+              <div className="action-items-list">
+                {cards.map((card, idx) => {
+                  const currentStatus = cardStatuses[card.id] || (card.is_escalated ? 'Unsuccessful' : 'Pending');
+                  const isUnsuccessful = currentStatus === 'Unsuccessful' || card.is_escalated;
+                  const nextStepText = card.follow_up_action || (card.is_escalated ? card.action : null);
+
+                  // Extract clean priority: High / Medium / Low
+                  const cleanPriority = card.priority
+                    ? card.priority.replace(/ priority/gi, '').trim()
+                    : null;
+
+                  return (
+                    <div key={card.id || idx} className="simple-action-card">
+                      {/* Top Action Title & Priority */}
+                      <div className="action-card-top">
+                        <div className="action-num-title">
+                          <span className="action-number">{idx + 1}.</span>
+                          <h3 className="action-title">{card.title || `Action ${idx + 1}`}</h3>
+                        </div>
+                        {cleanPriority && (
+                          <span className={`priority-pill ${getPriorityClass(cleanPriority)}`}>
+                            Priority: {cleanPriority}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* One short sentence explaining the action */}
+                      <p className="action-simple-sentence">
+                        {card.action}
+                      </p>
+
+                      {/* SECTION 5: ACTION STATUS */}
+                      <div className="action-status-bar">
+                        <div className="status-indicator-group">
+                          <span className="status-indicator-label">Action Status:</span>
+                          <span className={`status-pill-current status-${currentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {currentStatus}
+                          </span>
+                        </div>
+
+                        <div className="status-buttons-row">
+                          {['In Progress', 'Completed', 'Successful', 'Unsuccessful'].map((st) => (
+                            <button
+                              key={st}
+                              type="button"
+                              className={`simple-status-btn ${currentStatus === st ? 'active' : ''}`}
+                              onClick={() => handleStatusChange(card.id, st)}
+                              disabled={updatingId === card.id}
+                            >
+                              {st}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* SECTION 6: NEXT STEP (Displayed if Unsuccessful or if follow-up exists) */}
+                      {isUnsuccessful && nextStepText && (
+                        <div className="next-step-box">
+                          <span className="next-step-label">Next Step:</span>
+                          <span className="next-step-content">{nextStepText}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -22,7 +22,12 @@
 
 import React from 'react';
 
-const PredictionResult = ({ result = null, location = null }) => {
+const PredictionResult = ({
+  result = null,
+  location = null,
+  geoDetails = null,
+  onSelectDeposit = null,
+}) => {
   // If no AI/ML result is provided, render the strict placeholder
   if (!result) {
     return (
@@ -106,6 +111,31 @@ const PredictionResult = ({ result = null, location = null }) => {
         </div>
       </div>
 
+      {/* Mineral Belt Proximity Context (Solution B) */}
+      {result.nearby_deposit && result.nearby_deposit.found && (
+        <div className="nearby-deposit-banner">
+          <div className="nearby-banner-badge-row">
+            <span className="nearby-badge">📍 {result.nearby_deposit.belt}</span>
+            <span className="nearby-dist-tag">{result.nearby_deposit.distance_km} km away</span>
+          </div>
+          <p className="nearby-message">
+            {result.nearby_deposit.message}
+          </p>
+          {onSelectDeposit && (
+            <button
+              type="button"
+              className="btn-inspect-nearby"
+              onClick={() => onSelectDeposit(result.nearby_deposit.latitude, result.nearby_deposit.longitude)}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="btn-icon">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+              </svg>
+              <span>Inspect {result.nearby_deposit.mine} Deposit ({result.nearby_deposit.deposit_potential}) →</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Key Factors Checklist (if available from model analysis) */}
       {keyFactors.length > 0 && (
         <div className="factors-section">
@@ -123,22 +153,87 @@ const PredictionResult = ({ result = null, location = null }) => {
         </div>
       )}
 
-      {/* Location Details Subcard */}
+      {/* Location Details Subcard matching Reference Mockup */}
       {location && (
         <div className="location-details-subcard">
           <h4 className="subcard-title">Location Details</h4>
           <div className="location-detail-grid">
             <div className="detail-row">
-              <span className="detail-key">Latitude</span>
-              <span className="detail-val">: {location.latitude}</span>
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                </svg>
+                <span className="detail-key">Latitude</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {typeof location.latitude === 'number' ? location.latitude.toFixed(4) : location.latitude}
+              </span>
             </div>
+
             <div className="detail-row">
-              <span className="detail-key">Longitude</span>
-              <span className="detail-val">: {location.longitude}</span>
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                <span className="detail-key">Longitude</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {typeof location.longitude === 'number' ? location.longitude.toFixed(4) : location.longitude}
+              </span>
             </div>
+
             <div className="detail-row">
-              <span className="detail-key">Model Confidence</span>
-              <span className="detail-val">: {percentage}%</span>
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/>
+                </svg>
+                <span className="detail-key">State</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {geoDetails?.state || 'Not available'}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"/>
+                </svg>
+                <span className="detail-key">District</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {geoDetails?.district || 'Not available'}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                <span className="detail-key">Village</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {geoDetails?.village || 'Not available'}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-icon-key">
+                <svg className="detail-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
+                </svg>
+                <span className="detail-key">Model Confidence</span>
+              </span>
+              <span className="detail-colon">:</span>
+              <span className="detail-val">
+                {percentage}%
+              </span>
             </div>
           </div>
         </div>

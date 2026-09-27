@@ -24,6 +24,9 @@ import numpy as np
 # Base directory pointing to backend/data/production
 PRODUCTION_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "production"
 
+# Centralized dataset path dictionary matching Part A.2
+PRODUCTION_DATASETS: Dict[str, Optional[Path]] = {}
+
 # Dataset definitions with potential file candidates
 DATASET_DEFINITIONS = {
     "equipment_failure": {
@@ -35,6 +38,17 @@ DATASET_DEFINITIONS = {
         ],
         "date_columns": ["event_date"],
         "target_columns": ["downtime_hours", "production_loss_tonnes", "repair_cost_usd", "failure_mode", "severity"]
+    },
+    "recommendation_cases": {
+        "name": "Mining Recommendation Case Library",
+        "primary_filename": "mining_recommendation_case_library.csv",
+        "candidates": [
+            "mining_recommendation_case_library.csv",
+            "mining_recommendation_case_library.xlsx",
+            "mining_recommendation_case_library.xls"
+        ],
+        "date_columns": ["Date"],
+        "target_columns": ["Action_Taken", "Action_Outcome", "Action_Status", "Follow_Up_Action", "Problem_Identified", "Primary_Cause_Category"]
     },
     "historical_production": {
         "name": "MOIL Historical Production Prototype",
@@ -56,14 +70,26 @@ DATASET_DEFINITIONS = {
         "date_columns": ["Date"],
         "target_columns": ["Temperature_C", "Precipitation_mm", "Wind_Speed_m_s", "Soil_Moisture_0_100cm"]
     },
+    "rock_blastholes": {
+        "name": "MWD Rock Type & Blast-Holes Model Ready",
+        "primary_filename": "mwd_rocktype_blastholes_model_ready_train.csv",
+        "candidates": [
+            "mwd_rocktype_blastholes_model_ready_train.csv",
+            "mwd_rocktype_blastholes_model_ready_train.xlsx",
+            "mwd_rocktype_blastholes_model_ready_training.xlsx",
+            "mwd_rocktype_blastholes_model_ready_training.csv"
+        ],
+        "date_columns": [],
+        "target_columns": ["Rock", "transition_zone", "round_length"]
+    },
     "rocktype_blastholes": {
         "name": "MWD Rock Type & Blast-Holes Model Ready",
-        "primary_filename": "mwd_rocktype_blastholes_model_ready_training.xlsx",
+        "primary_filename": "mwd_rocktype_blastholes_model_ready_train.csv",
         "candidates": [
-            "mwd_rocktype_blastholes_model_ready_training.xlsx",
-            "mwd_rocktype_blastholes_model_ready_training.csv",
+            "mwd_rocktype_blastholes_model_ready_train.csv",
             "mwd_rocktype_blastholes_model_ready_train.xlsx",
-            "mwd_rocktype_blastholes_model_ready_train.csv"
+            "mwd_rocktype_blastholes_model_ready_training.xlsx",
+            "mwd_rocktype_blastholes_model_ready_training.csv"
         ],
         "date_columns": [],
         "target_columns": ["Rock", "transition_zone", "round_length"]
@@ -85,7 +111,7 @@ class ProductionDatasetService:
         self._scan_and_resolve_files()
 
     def _scan_and_resolve_files(self):
-        """Scans the production data folder to locate existing dataset files."""
+        """Scans the production data folder to locate existing dataset files regardless of extension."""
         for key, defn in DATASET_DEFINITIONS.items():
             resolved = None
             for candidate in defn["candidates"]:
@@ -93,8 +119,16 @@ class ProductionDatasetService:
                 if candidate_path.exists() and candidate_path.is_file():
                     resolved = candidate_path
                     break
+            # Fallback glob check
+            if not resolved:
+                base_stem = Path(defn["primary_filename"]).stem
+                for match in PRODUCTION_DATA_DIR.glob(f"{base_stem}.*"):
+                    if match.is_file() and match.suffix.lower() in [".csv", ".xlsx", ".xls"]:
+                        resolved = match
+                        break
             if resolved:
                 self._resolved_paths[key] = resolved
+                PRODUCTION_DATASETS[key] = resolved
 
     def _print_dataset_status(self, key: str, df: pd.DataFrame, file_path: Path):
         """Prints standardized terminal status log per project specification."""
@@ -226,6 +260,22 @@ class ProductionDatasetService:
                     }
         return self._dataset_metadata
 
+    def get_all_dataset_status(self) -> Dict[str, Dict[str, Any]]:
+        """Returns standardized status dictionary for all production datasets."""
+        meta = self.get_all_metadata()
+        status_dict = {}
+        for key, m in meta.items():
+            status_dict[key] = {
+                "name": m.get("name"),
+                "filename": m.get("filename"),
+                "file_path": m.get("file_path"),
+                "rows": m.get("total_rows", 0),
+                "columns": m.get("total_columns", 0),
+                "loaded": bool(m.get("exists", False) and m.get("total_rows", 0) > 0),
+                "missing_values": m.get("missing_values_count", 0)
+            }
+        return status_dict
+
     def get_columns_info(self, key: str) -> List[Dict[str, Any]]:
         """Returns detailed column inspection including dtype, null count, and sample values."""
         df = self.get_dataset(key)
@@ -296,6 +346,26 @@ class ProductionDatasetService:
             "offset": offset,
             "records": records,
         }
+
+    def get_recommendation_cases(self) -> pd.DataFrame:
+        """Returns the full 898-record case library DataFrame."""
+        return self.get_dataset("recommendation_cases")
+
+    def get_equipment_failure_data(self) -> pd.DataFrame:
+        """Returns the equipment failure records DataFrame."""
+        return self.get_dataset("equipment_failure")
+
+    def get_weather_soil_data(self) -> pd.DataFrame:
+        """Returns the MOIL weather & soil records DataFrame."""
+        return self.get_dataset("weather_soil")
+
+    def get_rock_blastholes_data(self) -> pd.DataFrame:
+        """Returns the MWD rock type & blast-holes records DataFrame."""
+        return self.get_dataset("rock_blastholes")
+
+    def get_historical_production_data(self) -> pd.DataFrame:
+        """Returns the historical production prototype records DataFrame."""
+        return self.get_dataset("historical_production")
 
 
 # Singleton export instance

@@ -20,7 +20,14 @@
  * - If clicked, displays: "AI/ML prediction will be connected later."
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const PRESET_MINES = [
+  { name: 'Balaghat Mine', lat: 21.8487, lon: 80.2359, tag: '79% High' },
+  { name: 'Tirodi Mine Pit', lat: 21.6836, lon: 79.7468, tag: '69% High' },
+  { name: 'Ukwa Deposit', lat: 21.9619, lon: 80.4698, tag: '69% High' },
+  { name: 'Kandri Deposit', lat: 21.4137, lon: 79.2820, tag: '52% Med' },
+];
 
 const LocationForm = ({
   latitude,
@@ -34,6 +41,12 @@ const LocationForm = ({
   const [latInput, setLatInput] = useState(String(latitude ?? '18.5234'));
   const [lonInput, setLonInput] = useState(String(longitude ?? '79.1234'));
   const [clientError, setClientError] = useState('');
+
+  // Keep input fields synchronized when coordinates change externally (e.g. from preset selection or deposit jump)
+  useEffect(() => {
+    if (latitude != null) setLatInput(String(latitude));
+    if (longitude != null) setLonInput(String(longitude));
+  }, [latitude, longitude]);
 
   // Validate numbers and propagate changes locally to the parent and map
   const validateAndPropagate = (newLatStr, newLonStr) => {
@@ -126,6 +139,30 @@ const LocationForm = ({
         Enter Location Details
       </h2>
 
+      {/* Quick-Select Known Sausar Belt Deposits */}
+      <div className="preset-mines-bar">
+        <span className="preset-label">Explore Known Deposits (Sausar Belt):</span>
+        <div className="preset-chips">
+          {PRESET_MINES.map((m) => (
+            <button
+              key={m.name}
+              type="button"
+              className="preset-chip"
+              title={`Click to analyze ${m.name}`}
+              onClick={() => {
+                setLatInput(String(m.lat));
+                setLonInput(String(m.lon));
+                onCoordinatesChange(m.lat, m.lon);
+                if (onPredict) onPredict(m.lat, m.lon);
+              }}
+            >
+              <span className="chip-name">{m.name}</span>
+              <span className="chip-badge">{m.tag}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Inline Error Alert Message */}
       {displayError && (
         <div className="form-error-banner" role="alert">
@@ -181,12 +218,12 @@ const LocationForm = ({
           </div>
         </div>
 
-        {/* Predict Potential Button (Placeholder: does not run prediction now) */}
-        <div className="form-actions">
+        <div className="form-actions-column">
           <button
             type="submit"
             className="btn-predict"
-            title="AI/ML prediction will be connected later."
+            title="Run AI/ML manganese ore potential prediction"
+            disabled={isLoading}
           >
             {isLoading ? (
               <>
@@ -203,6 +240,7 @@ const LocationForm = ({
               </>
             )}
           </button>
+          <span className="auto-predict-hint">(Auto-predicts on map click)</span>
         </div>
       </form>
     </section>

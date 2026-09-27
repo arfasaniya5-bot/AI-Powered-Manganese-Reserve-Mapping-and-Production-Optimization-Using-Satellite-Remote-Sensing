@@ -120,3 +120,18 @@ export const predictProductionShortfall = async (payload) => {
     throw new Error(error.response?.data?.detail || 'Production ML prediction request failed.');
   }
 };
+
+/**
+ * Fetches live weather forecast and soil moisture from Open-Meteo via backend.
+ * Calls GET /api/weather-forecast
+ * Accepts { mine, date, latitude, longitude }
+ */
+export const fetchWeatherForecast = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/api/weather-forecast', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching weather forecast:', error);
+    throw new Error(error.response?.data?.detail || 'Failed to fetch live weather forecast.');
+  }
+};

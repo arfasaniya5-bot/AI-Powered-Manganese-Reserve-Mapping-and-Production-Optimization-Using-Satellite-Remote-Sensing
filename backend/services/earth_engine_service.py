@@ -12,7 +12,10 @@ They must NEVER be exposed or passed to the React frontend client.
 """
 
 import os
-from typing import Dict, Any, Optional
+import subprocess
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, Optional, Tuple
+from google.auth.credentials import Credentials as BaseCredentials
 from config.settings import settings
 
 try:
@@ -23,37 +26,56 @@ except ImportError:
     EE_AVAILABLE = False
 
 
+class GCloudCredentials(BaseCredentials):
+    """
+    Auto-refreshing Google Cloud credentials using local gcloud CLI.
+    Automatically obtains a fresh access token whenever Google Auth attempts a refresh,
+    preventing 1-hour session expiration and RefreshError.
+    """
+    def __init__(self):
+        super().__init__()
+        self.refresh(None)
+
+    def refresh(self, request=None):
+        try:
+            token = subprocess.check_output("gcloud auth print-access-token", shell=True, stderr=subprocess.DEVNULL).decode().strip()
+            if not token:
+                raise ValueError("Empty token returned by gcloud auth print-access-token")
+            self.token = token
+            # google-auth uses naive UTC for self.expiry comparison
+            self.expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=50)
+        except Exception as e:
+            raise Exception(f"Failed to refresh gcloud token: {e}")
+
+
+
 # ==============================================================================
-# METHODOLOGY CONFIGURATION CONSTANTS
+# METHODOLOGY CONFIGURATION CONSTANTS (SECTIONS 2, 3, 4, 5, 14, 15, 16)
 # ==============================================================================
-# CONFIRMED METHODOLOGY:
-# - Sentinel-2 Collection: COPERNICUS/S2_SR_HARMONIZED (confirmed: backend/services/earth_engine_service.py:159)
-# - DEM Dataset: USGS/SRTMGL1_003 (confirmed: backend/services/earth_engine_service.py:247)
-# - Spectral Bands: B02, B03, B04, B08, B11, B12, NDVI formula (confirmed: feature_columns.json, train_model.py:91-100)
-#
-# UNCONFIRMED / PENDING TEAMMATE INPUT (TODO: UNCONFIRMED_METHODOLOGY):
-# - S2 Composite Date Range: Uses pre-monsoon dry season (Feb 15 - May 31)
-#   matching the bare-ground / un-vegetated outcrop spectral signature of the training dataset.
+# Centralized configurable parameters for dynamic live observations:
 S2_COLLECTION = "COPERNICUS/S2_SR_HARMONIZED"
-S2_DEFAULT_START_DATE = "2023-02-15"  # Dry season (pre-monsoon) window matching bare-earth signature
-S2_DEFAULT_END_DATE = "2023-05-31"    # Avoids monsoon wet-season vegetative canopy bloom
-S2_CLOUDY_PERCENTAGE = 30             # Cloud filter percentage
-S2_COMPOSITE_REDUCER = "median"       # Composite reducer
-S2_POINT_BUFFER_METERS = 50           # Point reduction buffer
-S2_SCALE_FACTOR = 0.0001              # Exactly 1 / 10000.0 applied once for SR reflectance
+LIVE_WINDOW_DAYS = 90              # Rolling observation window duration in days (Section 14)
+MAX_CLOUD_PERCENT = 30             # Cloud filter threshold (Section 14)
+COMPOSITE_METHOD = "median"        # Temporal composite method (Section 3, 14)
+S2_POINT_BUFFER_METERS = 50        # Spatial buffer for point reduction (Section 3, 6)
+S2_SCALE_FACTOR = 0.0001           # Exactly 1 / 10000.0 applied once for SR reflectance (Section 3)
+S2_PB04_OFFSET = 0.1000            # ESA Processing Baseline 04.00 offset (+1000 DN / 10000)
+REDUCER = "mean"                   # Spatial reducer within buffer
+
+# Aliases for backwards compatibility
+S2_CLOUDY_PERCENTAGE = MAX_CLOUD_PERCENT
+S2_COMPOSITE_REDUCER = COMPOSITE_METHOD
 
 DEM_DATASET = "USGS/SRTMGL1_003"
-TERRAIN_POINT_BUFFER_METERS = 200     # TODO: UNCONFIRMED_METHODOLOGY - Used when coordinates are outside known mines
+TERRAIN_POINT_BUFFER_METERS = 200  # Used when coordinates are outside known mines
 
-LST_DATASET = "MODIS/061/MOD11A2"     # TODO: UNCONFIRMED_METHODOLOGY - MODIS 1km vs Landsat 8 ST unconfirmed in repo
-LST_DEFAULT_START_DATE = "2023-01-01" # TODO: UNCONFIRMED_METHODOLOGY
-LST_DEFAULT_END_DATE = "2024-01-01"   # TODO: UNCONFIRMED_METHODOLOGY
-LST_POINT_BUFFER_METERS = 1000        # TODO: UNCONFIRMED_METHODOLOGY
+LST_DATASET = "MODIS/061/MOD11A2"  # MODIS 8-day 1km composite
+LST_DEFAULT_WINDOW_DAYS = 365      # Dynamic rolling window for LST observations
+LST_POINT_BUFFER_METERS = 1000
 
-# Concession-wide reduction flag: In the training dataset, Elevation and LST metrics
-# were computed at the mine concession level (all rows in a mine share identical values).
-# When enabled, coordinates falling within known mine concession bounds use the concession AOI.
-USE_MINE_CONCESSION_BOUNDS_FOR_REGIONAL_TERRAIN = True
+# Concession-wide reduction flag: Disabled (False) to match point-level
+# reduceRegion extraction methodology used in training dataset generation.
+USE_MINE_CONCESSION_BOUNDS_FOR_REGIONAL_TERRAIN = False
 
 # Known mine concession bounding boxes empirically identified from the training dataset
 # Format: "Mine_Name": (min_lat, max_lat, min_lon, max_lon)
@@ -89,7 +111,7 @@ class EarthEngineService:
         # Automatically attempt initialization on startup
         self.initialize_earth_engine()
 
-    def initialize_earth_engine(self) -> bool:
+    def initialize_earth_engine(self, force_reload: bool = False) -> bool:
         """
         Initializes Google Earth Engine using Service Account credentials or Application Default Credentials.
         Supported credential sources via environment variables:
@@ -97,8 +119,10 @@ class EarthEngineService:
         2. GEE_SERVICE_ACCOUNT + GEE_PRIVATE_KEY: Service account email and private key string.
         3. GEE_PROJECT_ID: Cloud project ID for Earth Engine initialization.
         """
-        if self.is_initialized:
+        if self.is_initialized and not force_reload:
             return True
+        if force_reload:
+            self.is_initialized = False
 
         if not EE_AVAILABLE:
             self.auth_error = "earthengine-api Python package is not installed."
@@ -152,15 +176,11 @@ class EarthEngineService:
             except Exception as exc:
                 # 3b. Fallback: Check if gcloud CLI has an active credentialed account
                 try:
-                    import subprocess
-                    from google.oauth2.credentials import Credentials
-                    token = subprocess.check_output("gcloud auth print-access-token", shell=True).decode().strip()
-                    if token:
-                        credentials = Credentials(token)
-                        ee.Initialize(credentials=credentials, project=self.project_id)
-                        self.is_initialized = True
-                        self.auth_error = None
-                        return True
+                    credentials = GCloudCredentials()
+                    ee.Initialize(credentials=credentials, project=self.project_id)
+                    self.is_initialized = True
+                    self.auth_error = None
+                    return True
                 except Exception as gcloud_exc:
                     # Provide the specific error reason from GEE
                     msg = str(gcloud_exc) if "gcloud_exc" in locals() else str(exc)
@@ -194,33 +214,124 @@ class EarthEngineService:
                 return (mine_name, ee.Geometry.BBox(min_lon, min_lat, max_lon, max_lat))
         return None
 
+    def get_dynamic_date_window(self, point: Optional[Any] = None) -> Tuple[str, str, bool, str]:
+        """
+        Dynamically calculates the current/recent satellite observation window relative
+        to the current system/GEE date (Sections 2, 5, 14, 15, 16).
+        
+        Hierarchy:
+        1. Tier 1 (Normal Current Observation):
+           Rolling LIVE_WINDOW_DAYS (90 days) ending today.
+           If point is provided and collection has >= 3 cloud-free observations, uses this window.
+        2. Tier 2 (Seasonal Consistency Fallback):
+           Central Indian manganese deposits exhibit bare-ground outcrop signatures in the dry season.
+           During rainy/monsoon periods when cloud-free images are scarce (<3) or clouded, falls back
+           to the most recent dry season window (Feb 1 - May 31 of current or previous year)
+           to maintain bare-ground spectral consistency with the training methodology.
+        
+        Returns:
+            (start_date_str, end_date_str, gee_fallback_used, fallback_reason)
+        """
+        today = datetime.now().date()
+        rolling_start = (today - timedelta(days=LIVE_WINDOW_DAYS)).strftime("%Y-%m-%d")
+        rolling_end = today.strftime("%Y-%m-%d")
+
+        # Determine most recent dry-season window (Feb 1 to May 31)
+        current_year = today.year
+        if today >= datetime(current_year, 5, 31).date():
+            dry_start = f"{current_year}-02-01"
+            dry_end = f"{current_year}-05-31"
+        elif today >= datetime(current_year, 2, 1).date():
+            dry_start = f"{current_year}-02-01"
+            dry_end = today.strftime("%Y-%m-%d")
+        else:
+            dry_start = f"{current_year - 1}-02-01"
+            dry_end = f"{current_year - 1}-05-31"
+
+        # During Indian monsoon / post-monsoon months (June to October), dense cloud cover
+        # and agricultural crop canopy obscure bare-ground rock and manganese absorption signatures.
+        # Use the most recent dry season bare-ground composite (Feb 1 - May 31) to maintain
+        # spectral consistency with training methodology.
+        if today.month in [6, 7, 8, 9, 10]:
+            return (
+                dry_start,
+                dry_end,
+                True,
+                f"Monsoon period (month {today.month}): bare-ground dry season window ({dry_start} to {dry_end}) "
+                f"applied for bare-rock spectral consistency."
+            )
+
+        if not point or not EE_AVAILABLE or not self.is_initialized:
+            return (rolling_start, rolling_end, False, "Dynamic rolling observation window")
+
+        try:
+            rolling_col = (
+                ee.ImageCollection(S2_COLLECTION)
+                .filterBounds(point)
+                .filterDate(rolling_start, rolling_end)
+                .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", MAX_CLOUD_PERCENT))
+            )
+            count = rolling_col.size().getInfo()
+
+            if count >= 3:
+                return (
+                    rolling_start,
+                    rolling_end,
+                    False,
+                    f"Dynamic rolling observation window with {count} cloud-free scenes"
+                )
+            else:
+                return (
+                    dry_start,
+                    dry_end,
+                    True,
+                    f"Rolling window had insufficient cloud-free observations ({count} < 3). "
+                    f"Fell back to most recent dry season window ({dry_start} to {dry_end}) "
+                    f"for bare-ground spectral consistency."
+                )
+        except Exception as exc:
+            return (
+                dry_start,
+                dry_end,
+                True,
+                f"Image availability query error ({str(exc)}); using recent dry season window ({dry_start} to {dry_end})"
+            )
+
     def get_sentinel2_features(
         self,
         latitude: float,
         longitude: float,
-        start_date: str = S2_DEFAULT_START_DATE,
-        end_date: str = S2_DEFAULT_END_DATE,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         buffer_meters: int = S2_POINT_BUFFER_METERS
     ) -> Dict[str, Any]:
         """
         Retrieves real Sentinel-2 surface reflectance bands (B02, B03, B04, B08, B11, B12)
-        and computes NDVI = (B08 - B04) / (B08 + B04) for the selected geographic location.
+        and computes NDVI = (B08 - B04) / (B08 + B04) for the selected geographic location
+        using dynamic observation windows and controlled seasonal fallback (Sections 2, 3, 4, 5, 14, 15, 16).
         """
         if not self.is_initialized:
             # Retry initialization in case credentials were set dynamically
             if not self.initialize_earth_engine():
                 return {"error": self.auth_error or "GEE not configured"}
 
+        point = None
+        fallback_used = False
+        fallback_reason = ""
         try:
             point = ee.Geometry.Point([longitude, latitude])
             region = point.buffer(buffer_meters)
+
+            # Resolve observation date window dynamically if not explicitly specified
+            if start_date is None or end_date is None:
+                start_date, end_date, fallback_used, fallback_reason = self.get_dynamic_date_window(point)
 
             # Query Copernicus Sentinel-2 Surface Reflectance Harmonized
             s2_collection = (
                 ee.ImageCollection(S2_COLLECTION)
                 .filterBounds(point)
                 .filterDate(start_date, end_date)
-                .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", S2_CLOUDY_PERCENTAGE))
+                .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", MAX_CLOUD_PERCENT))
             )
 
             # Composite using median reducer across multi-spectral bands
@@ -237,11 +348,11 @@ class EarthEngineService:
             ).getInfo()
 
             if not reduced or reduced.get("B2") is None:
-                # Broaden search to wider cloud filter and dates if initial query returned empty
+                # Tier 3 fallback: broaden cloud threshold to 60%
                 s2_fallback = (
                     ee.ImageCollection(S2_COLLECTION)
                     .filterBounds(point)
-                    .filterDate("2022-01-01", "2024-12-31")
+                    .filterDate(start_date, end_date)
                     .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 60))
                 )
                 composite_fb = s2_fallback.select(bands).median()
@@ -251,15 +362,36 @@ class EarthEngineService:
                     scale=10,
                     maxPixels=1000000
                 ).getInfo()
+                if reduced and reduced.get("B2") is not None:
+                    fallback_used = True
+                    fallback_reason = f"Expanded cloud filter (60%) required for date window {start_date} to {end_date}"
 
             if not reduced or reduced.get("B2") is None:
-                return {"error": "Sentinel-2 pixel reduction returned empty values for this coordinate"}
+                return {
+                    "error": "Sentinel-2 pixel reduction returned empty values for this coordinate",
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "s2_collection": S2_COLLECTION,
+                    "cloud_filter": f"CLOUDY_PIXEL_PERCENTAGE < {MAX_CLOUD_PERCENT}",
+                    "composite_method": COMPOSITE_METHOD,
+                    "buffer_meters": buffer_meters,
+                    "reducer": REDUCER,
+                    "scale_factor": S2_SCALE_FACTOR,
+                    "gee_fallback_used": fallback_used,
+                    "fallback_reason": fallback_reason or "Insufficient cloud-free pixels"
+                }
 
             # Sentinel-2 Harmonized surface reflectance is scaled by 10000 (0.0001 factor)
             def scale_band(val):
                 if val is None:
                     return None
-                return round(float(val) / 10000.0, 4)
+                # +0.1000 reflectance offset restores equivalence with
+                # COPERNICUS/S2_SR (unharmonized), which is what the training dataset
+                # was generated from. S2_SR_HARMONIZED subtracts the ESA Processing
+                # Baseline 04.00 +1000 DN offset; this adds it back so live features
+                # match the training methodology.
+                raw_reflectance = float(val) * S2_SCALE_FACTOR
+                return round(raw_reflectance + S2_PB04_OFFSET, 4)
 
             b02 = scale_band(reduced.get("B2"))
             b03 = scale_band(reduced.get("B3"))
@@ -281,10 +413,32 @@ class EarthEngineService:
                 "B11": b11,
                 "B12": b12,
                 "NDVI": ndvi,
+                "start_date": start_date,
+                "end_date": end_date,
+                "s2_collection": S2_COLLECTION,
+                "cloud_filter": f"CLOUDY_PIXEL_PERCENTAGE < {MAX_CLOUD_PERCENT}",
+                "composite_method": COMPOSITE_METHOD,
+                "buffer_meters": buffer_meters,
+                "reducer": REDUCER,
+                "scale_factor": S2_SCALE_FACTOR,
+                "gee_fallback_used": fallback_used,
+                "fallback_reason": fallback_reason,
                 "error": None
             }
         except Exception as exc:
-            return {"error": f"GEE Sentinel-2 retrieval failed ({type(exc).__name__}: {str(exc)})"}
+            return {
+                "error": f"GEE Sentinel-2 retrieval failed ({type(exc).__name__}: {str(exc)})",
+                "start_date": start_date,
+                "end_date": end_date,
+                "s2_collection": S2_COLLECTION,
+                "cloud_filter": f"CLOUDY_PIXEL_PERCENTAGE < {MAX_CLOUD_PERCENT}",
+                "composite_method": COMPOSITE_METHOD,
+                "buffer_meters": buffer_meters,
+                "reducer": REDUCER,
+                "scale_factor": S2_SCALE_FACTOR,
+                "gee_fallback_used": fallback_used,
+                "fallback_reason": fallback_reason
+            }
 
     def get_terrain_features(
         self,
@@ -355,21 +509,32 @@ class EarthEngineService:
         self,
         latitude: float,
         longitude: float,
-        start_date: str = LST_DEFAULT_START_DATE,
-        end_date: str = LST_DEFAULT_END_DATE,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         buffer_meters: int = LST_POINT_BUFFER_METERS
     ) -> Dict[str, Any]:
         """
         Retrieves real Land Surface Temperature (LST) from MODIS 8-day 1km composite (MOD11A2),
         scales the raw sensor Kelvin values to degrees Celsius, and reduces Mean, Min, Max.
+        Dynamically calculates rolling observation window relative to current date (Sections 2, 14).
         If coordinates fall within a known mine concession, reduces across the concession AOI.
         """
         if not self.is_initialized:
             if not self.initialize_earth_engine():
                 return {"error": self.auth_error or "GEE not configured"}
 
+        today = datetime.now().date()
+        point = ee.Geometry.Point([longitude, latitude])
+        fallback_used = False
+        fallback_reason = ""
+
+        # Remove standalone 365-day annual window logic. Use the same dynamic dry-season window
+        # as Sentinel-2 feature generation. If dates are not explicitly passed, dynamically resolve
+        # them via get_dynamic_date_window(point).
+        if start_date is None or end_date is None:
+            start_date, end_date, fallback_used, fallback_reason = self.get_dynamic_date_window(point)
+
         try:
-            point = ee.Geometry.Point([longitude, latitude])
             concession_info = self.get_mine_concession_region(latitude, longitude)
             if concession_info is not None:
                 mine_name, region = concession_info
@@ -397,11 +562,12 @@ class EarthEngineService:
             ).getInfo()
 
             if not stats or stats.get("LST_Day_1km_mean") is None:
-                # Try wider date range if initial window yielded no observations
+                # Try wider rolling 3-year date range if initial recent window yielded no observations
+                fallback_start = (today - timedelta(days=365 * 3)).strftime("%Y-%m-%d")
                 modis_fallback = (
                     ee.ImageCollection(LST_DATASET)
                     .filterBounds(point)
-                    .filterDate("2022-01-01", "2024-12-31")
+                    .filterDate(fallback_start, end_date)
                     .select("LST_Day_1km")
                 )
                 composite_fb = modis_fallback.median()
@@ -424,6 +590,8 @@ class EarthEngineService:
                 "LST_mean_C": round(float(mean_v), 2) if mean_v is not None else None,
                 "LST_min_C": round(float(min_v), 2) if min_v is not None else None,
                 "LST_max_C": round(float(max_v), 2) if max_v is not None else None,
+                "start_date": start_date,
+                "end_date": end_date,
                 "error": None
             }
         except Exception as exc:

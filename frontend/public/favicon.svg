@@ -1,0 +1,6 @@
+<svg viewBox="0 0 40 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Left peak: Sky Blue -->
+  <path d="M14 2L2 28H18L24 16L14 2Z" fill="#0ea5e9" />
+  <!-- Right peak: Vibrant Emerald Green -->
+  <path d="M24 10L14 28H38L24 10Z" fill="#10b981" />
+</svg>

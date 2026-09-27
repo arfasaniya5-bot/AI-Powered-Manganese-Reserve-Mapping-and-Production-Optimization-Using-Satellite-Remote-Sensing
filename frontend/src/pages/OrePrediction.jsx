@@ -1,22 +1,24 @@
 /**
  * OrePrediction Page Component
  * ----------------------------
- * Coordinates the live exploration workflow:
- * 1. Default latitude (18.5234) and longitude (79.1234) are initialized on load.
- * 2. The map immediately renders the default location and marker.
- * 3. When the user changes latitude or longitude, the map updates immediately locally via React state.
- *    NO API request is sent on typing or keystrokes!
- * 4. When the user clicks "Predict Potential", FastAPI backend analysis is initiated (POST /api/location).
- * 5. Feature extraction occurs in the backend and prints in the terminal.
- * 6. PredictionResult displays the clean placeholder message:
- *    "Prediction results will appear here after the AI/ML model is connected."
+ * Single source of truth for location exploration & manganese potential prediction:
+ * 1. Default coordinates (18.5234°N, 79.1234°E) initialized on load.
+ * 2. Reverse geocoding resolves real State, District, and Village via FastAPI endpoint.
+ * 3. Unified state management:
+ *    - Dragging map: live center coordinates display updates continuously (via RAF).
+ *      On drag release (moveend): coordinates update and debounced reverse geocoding triggers.
+ *      Prediction does NOT auto-trigger on drag.
+ *    - Clicking/Tapping map: marker moves to clicked point, coordinates & reverse geocoding update,
+ *      and prediction runs automatically without requiring button click.
+ *    - Manual input: user types lat/lon, clicks "Predict Potential" button, camera flies to point,
+ *      location details update, and prediction runs.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import LocationForm from '../components/LocationForm';
 import LocationMap from '../components/LocationMap';
 import PredictionResult from '../components/PredictionResult';
-import { predictPotential } from '../services/api';
+import { predictPotential, reverseGeocode } from '../services/api';
 
 const OrePrediction = () => {
   // Default coordinates matching project specification
@@ -25,15 +27,62 @@ const OrePrediction = () => {
     longitude: 79.1234,
   });
 
+  // Dynamic reverse geocoded details
+  const [geoDetails, setGeoDetails] = useState({
+    state: 'Telangana',
+    district: 'Karimnagar',
+    village: 'Choppadandi',
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
-  // Future AI/ML prediction result state (kept null today per prompt constraint)
   const [predictionResult, setPredictionResult] = useState(null);
 
+  const debounceTimerRef = useRef(null);
+
   /**
-   * Callback invoked by LocationForm whenever the user changes latitude or longitude.
-   * Updates state immediately so the Leaflet map and marker update locally without network requests.
+   * Helper to fetch reverse geocoding with optional debouncing.
+   */
+  const updateGeoDetails = (lat, lon, immediate = false) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    const fetchGeo = async () => {
+      try {
+        const geo = await reverseGeocode(lat, lon);
+        if (geo) {
+          setGeoDetails({
+            state: geo.state || 'Not available',
+            district: geo.district || 'Not available',
+            village: geo.village || 'Not available',
+          });
+        }
+      } catch (err) {
+        console.warn('[OrePrediction] Geocoding update failed:', err);
+      }
+    };
+
+    if (immediate) {
+      fetchGeo();
+    } else {
+      // Debounce by 250ms on drag release
+      debounceTimerRef.current = setTimeout(fetchGeo, 250);
+    }
+  };
+
+  /**
+   * Initial load: fetch real geocoding details and initial prediction for default coordinates.
+   */
+  useEffect(() => {
+    updateGeoDetails(coordinates.latitude, coordinates.longitude, true);
+    handlePredict(coordinates.latitude, coordinates.longitude);
+  }, []);
+
+  /**
+   * Callback invoked by LocationForm whenever user types latitude or longitude.
+   * Updates state locally without sending premature prediction requests.
    */
   const handleCoordinatesChange = (newLat, newLon) => {
     setCoordinates({
@@ -44,16 +93,26 @@ const OrePrediction = () => {
   };
 
   /**
+   * Callback invoked when user finishes dragging the map (moveend).
+   * Synchronizes page coordinates and reverse geocoding without running prediction.
+   */
+  const handleDragEnd = (newLat, newLon) => {
+    setCoordinates({
+      latitude: newLat,
+      longitude: newLon,
+    });
+    updateGeoDetails(newLat, newLon, false);
+  };
+
+  /**
    * Predict Potential Handler:
-   * Initiated strictly when the user clicks the "Predict Potential" button.
-   * Sends the validated coordinates to FastAPI (POST /api/location) to trigger
-   * location feature extraction and backend terminal reporting.
+   * Called automatically on map click/tap, and manually when clicking "Predict Potential".
    */
   const handlePredict = async (lat, lon) => {
     const targetLat = lat ?? coordinates.latitude;
     const targetLon = lon ?? coordinates.longitude;
 
-    // Validate coordinates
+    // Validate coordinates boundary
     if (
       typeof targetLat !== 'number' ||
       typeof targetLon !== 'number' ||
@@ -71,6 +130,9 @@ const OrePrediction = () => {
     setIsLoading(true);
     setErrorMessage('');
 
+    // Ensure reverse geocoding is up-to-date
+    updateGeoDetails(targetLat, targetLon, true);
+
     try {
       // Call trained AI/ML prediction endpoint (POST /api/predict-ore)
       const response = await predictPotential(targetLat, targetLon);
@@ -80,12 +142,24 @@ const OrePrediction = () => {
         setErrorMessage('');
       }
     } catch (error) {
-      // Catch connection or validation errors gracefully
       setErrorMessage(error.message || 'Error communicating with FastAPI backend.');
       setPredictionResult(null);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Callback when user clicks or taps on the map:
+   * Selects exact coordinates, moves marker, updates geocoding, and auto-triggers prediction.
+   */
+  const handleMapSelect = (newLat, newLon) => {
+    setCoordinates({
+      latitude: newLat,
+      longitude: newLon,
+    });
+    setErrorMessage('');
+    handlePredict(newLat, newLon);
   };
 
   return (
@@ -113,12 +187,21 @@ const OrePrediction = () => {
       {/* Section 2: Two-column grid with Interactive Map on left and Prediction Result on right */}
       <div className="prediction-grid-layout">
         <div className="grid-col-map">
-          <LocationMap selectedLocation={coordinates} />
+          <LocationMap
+            selectedLocation={coordinates}
+            onLocationSelect={handleMapSelect}
+            onDragEnd={handleDragEnd}
+          />
         </div>
         <div className="grid-col-result">
           <PredictionResult
             result={predictionResult}
             location={coordinates}
+            geoDetails={geoDetails}
+            onSelectDeposit={(lat, lon) => {
+              handleCoordinatesChange(lat, lon);
+              handlePredict(lat, lon);
+            }}
           />
         </div>
       </div>

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   fetchProductionMines,
   fetchMineHistory,
+  fetchWeatherForecast,
   predictProductionShortfall,
 } from '../services/productionService';
 import ProductionStepOne from '../components/ProductionStepOne';
@@ -15,18 +16,24 @@ const ProductionForecast = () => {
   const [error, setError] = useState(null);
   const [mines, setMines] = useState([]);
 
-  // Form Data spanning all steps
+  // Form Data spanning all steps (Zero hardcoded weather values)
   const [formData, setFormData] = useState({
     mine: 'Balaghat',
     date: '2026-09-14',
     target_production: 10000,
     region: 'Madhya Pradesh',
-    temperature: 16.4,
-    wind_speed: 2.3,
-    humidity: 52.1,
-    precipitation: 0,
-    soil_moisture: 0.304,
+    temperature: null,
+    wind_speed: null,
+    humidity: null,
+    precipitation: null,
+    soil_moisture: null,
   });
+
+  // Weather Forecast state from live Open-Meteo API
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState(null);
+  const [soilMoistureUnavailable, setSoilMoistureUnavailable] = useState(false);
 
   // Step 2 Historical production records (last 7 days)
   const [history, setHistory] = useState([
@@ -76,6 +83,61 @@ const ProductionForecast = () => {
     loadHistory();
   }, [formData.mine]);
 
+  // Automatically fetch live weather forecast from Open-Meteo when mine or date changes
+  const loadWeather = useCallback(async () => {
+    if (!formData.mine) return;
+    setWeatherLoading(true);
+    setWeatherError(null);
+    try {
+      const res = await fetchWeatherForecast({
+        mine: formData.mine,
+        date: formData.date,
+      });
+
+      if (res && res.success) {
+        setWeatherData(res);
+        const temp = res.temperature_c ?? res.temperature;
+        const wind = res.wind_speed_ms ?? res.wind_speed;
+        const hum = res.relative_humidity_pct ?? res.humidity;
+        const prec = res.precipitation_mm ?? res.precipitation;
+        const sm = res.soil_moisture_0_100cm ?? res.soil_moisture;
+
+        const isSmUnavailable = sm === null || sm === undefined || res.soil_moisture_available === false;
+        setSoilMoistureUnavailable(isSmUnavailable);
+
+        setFormData((prev) => ({
+          ...prev,
+          temperature: temp,
+          wind_speed: wind,
+          humidity: hum,
+          precipitation: prec,
+          soil_moisture: sm,
+        }));
+      } else {
+        throw new Error('Weather data could not be retrieved from provider.');
+      }
+    } catch (err) {
+      console.error('Weather forecast fetch error:', err);
+      setWeatherError(err.message || 'Failed to fetch live weather forecast.');
+      setWeatherData(null);
+      setSoilMoistureUnavailable(true);
+      setFormData((prev) => ({
+        ...prev,
+        temperature: null,
+        wind_speed: null,
+        humidity: null,
+        precipitation: null,
+        soil_moisture: null,
+      }));
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, [formData.mine, formData.date]);
+
+  useEffect(() => {
+    loadWeather();
+  }, [loadWeather]);
+
   const updateFormData = (patch) => {
     setFormData((prev) => ({ ...prev, ...patch }));
   };
@@ -92,6 +154,12 @@ const ProductionForecast = () => {
   };
 
   const handleRunPrediction = async () => {
+    // Soil moisture gating: block prediction if soil moisture is unavailable
+    if (soilMoistureUnavailable || formData.soil_moisture === null || formData.soil_moisture === undefined) {
+      setError('Soil moisture data unavailable for this location/date — cannot proceed');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -104,11 +172,17 @@ const ProductionForecast = () => {
         date: formData.date,
         target_production: isNaN(targetNum) ? 10000 : targetNum,
         region: formData.region || 'Madhya Pradesh',
-        temperature: Number(formData.temperature) || 16.4,
-        wind_speed: Number(formData.wind_speed) || 2.3,
-        humidity: Number(formData.humidity) || 52.1,
-        precipitation: Number(formData.precipitation) || 0,
-        soil_moisture: Number(formData.soil_moisture) || 0.304,
+        // Model expected keys (with aliases for full compatibility, zero hardcoded numbers)
+        temperature: formData.temperature,
+        temperature_c: formData.temperature,
+        wind_speed: formData.wind_speed,
+        wind_speed_m_s: formData.wind_speed,
+        humidity: formData.humidity,
+        relative_humidity_percent: formData.humidity,
+        precipitation: formData.precipitation,
+        precipitation_mm: formData.precipitation,
+        soil_moisture: formData.soil_moisture,
+        soil_moisture_0_100cm: formData.soil_moisture,
         blasting_file_name: formData.geological_file_name || '',
         equipment_file_name: formData.equipment_file_name || '',
         weather_file_name: formData.weather_file_name || '',
@@ -159,6 +233,11 @@ const ProductionForecast = () => {
           onNext={handleRunPrediction}
           loading={loading}
           error={error}
+          weatherData={weatherData}
+          weatherLoading={weatherLoading}
+          weatherError={weatherError}
+          soilMoistureUnavailable={soilMoistureUnavailable}
+          onRetryWeather={loadWeather}
         />
       )}
 

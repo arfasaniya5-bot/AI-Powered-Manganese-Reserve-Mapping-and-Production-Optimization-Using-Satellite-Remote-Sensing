@@ -164,6 +164,28 @@ class DatabaseManager:
                         `login_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                 """)
+
+                # 7. Recommendation History Table (Part B.7)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS `recommendation_history` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `recommendation_id` VARCHAR(100) UNIQUE NOT NULL,
+                        `date` VARCHAR(50) DEFAULT NULL,
+                        `mine` VARCHAR(100) NOT NULL,
+                        `equipment_id` VARCHAR(100) DEFAULT NULL,
+                        `problem_type` VARCHAR(255) DEFAULT NULL,
+                        `trigger_context` TEXT DEFAULT NULL,
+                        `recommended_action` TEXT NOT NULL,
+                        `action_status` VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+                        `action_date` VARCHAR(50) DEFAULT NULL,
+                        `outcome` VARCHAR(255) DEFAULT NULL,
+                        `follow_up_action` TEXT DEFAULT NULL,
+                        `supporting_case_ids` TEXT DEFAULT NULL,
+                        `similarity_score` DOUBLE DEFAULT NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """)
             conn.close()
             print(f"Database '{self.db_name}' and tables initialized successfully in MySQL!")
         except Exception as e:

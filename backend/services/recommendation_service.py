@@ -495,152 +495,49 @@ def generate_recommendations(
 class RecommendationService:
     """
     Adapter and service layer wrapping the recommendation engine.
-    Prepares DataFrames from request payloads and structures presentation cards.
+    Routes to the Case-Based Reasoning (CBR) engine across 898 prototype cases.
     """
 
     def process_recommendations(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extracts inputs from request dictionary, passes them to generate_recommendations,
-        and enriches the result with card presentation metadata (title, category, priority, icon).
+        Processes recommendation request using the Case-Based Reasoning (CBR) engine,
+        matching against 898 historical prototype cases with MySQL progressive history.
         """
-        target = float(data.get("target_production") or 10000.0)
-        predicted = float(data.get("predicted_production") or (target * 0.85))
-        temp = float(data.get("temperature") if data.get("temperature") is not None else (data.get("temperature_c") or 16.4))
-        wind = float(data.get("wind_speed") if data.get("wind_speed") is not None else (data.get("wind_speed_m_s") or 2.3))
-        humidity = float(data.get("humidity") if data.get("humidity") is not None else (data.get("relative_humidity_percent") or 52.1))
-        precip = float(data.get("precipitation") if data.get("precipitation") is not None else (data.get("precipitation_mm") or 0.0))
-        soil_m = float(data.get("soil_moisture") if data.get("soil_moisture") is not None else (data.get("soil_moisture_0_100cm") or 0.304))
+        try:
+            from services.recommendation_engine import recommendation_engine
+            return recommendation_engine.generate_recommendations(data)
+        except Exception as exc:
+            print(f"[RecommendationService CBR Error] Falling back to baseline logic: {exc}")
+            target = float(data.get("target_production") or 10000.0)
+            predicted = float(data.get("predicted_production") or (target * 0.85))
+            temp = float(data.get("temperature") if data.get("temperature") is not None else (data.get("temperature_c") or 16.4))
+            wind = float(data.get("wind_speed") if data.get("wind_speed") is not None else (data.get("wind_speed_m_s") or 2.3))
+            humidity = float(data.get("humidity") if data.get("humidity") is not None else (data.get("relative_humidity_percent") or 52.1))
+            precip = float(data.get("precipitation") if data.get("precipitation") is not None else (data.get("precipitation_mm") or 0.0))
+            soil_m = float(data.get("soil_moisture") if data.get("soil_moisture") is not None else (data.get("soil_moisture_0_100cm") or 0.304))
 
-        # Build equipment DataFrame if provided
-        equipment_df = None
-        eq_data = data.get("equipment_data")
-        if isinstance(eq_data, list) and eq_data:
-            equipment_df = pd.DataFrame(eq_data)
-        elif isinstance(eq_data, dict) and eq_data:
-            equipment_df = pd.DataFrame([eq_data])
-        else:
-            # Check for discrete equipment fields
-            downtime = float(data.get("downtime_hours") or 0.0)
-            eq_loss = float(data.get("equipment_production_loss") or 0.0)
-            if downtime > 0 or eq_loss > 0 or data.get("severity"):
-                equipment_df = pd.DataFrame([{
-                    "downtime_hours": downtime,
-                    "production_loss_tonnes": eq_loss,
-                    "severity": str(data.get("severity") or "moderate"),
-                    "operating_hours": float(data.get("operating_hours") or 8.0),
-                    "was_scheduled": False if downtime > 0 else True
-                }])
-
-        # Build MWD/blasting DataFrame if provided
-        mwd_df = None
-        geo_data = data.get("geological_data") or data.get("mwd_data")
-        if isinstance(geo_data, list) and geo_data:
-            mwd_df = pd.DataFrame(geo_data)
-        elif isinstance(geo_data, dict) and geo_data:
-            mwd_df = pd.DataFrame([geo_data])
-        else:
-            rock = str(data.get("rock_prediction") or data.get("rock") or "")
-            if rock:
-                mwd_df = pd.DataFrame([{
-                    "Rock": rock,
-                    "PenetrNormMean": float(data.get("penetration_rate") or 12.0),
-                    "transition_zone": False,
-                    "round_length": float(data.get("round_length") or 4.5)
-                }])
-
-        # Execute teammate's recommendation engine
-        raw_result = generate_recommendations(
-            target_production=target,
-            predicted_production=predicted,
-            temperature=temp,
-            wind_speed=wind,
-            humidity=humidity,
-            precipitation=precip,
-            soil_moisture=soil_m,
-            equipment_df=equipment_df,
-            mwd_df=mwd_df
-        )
-
-        status = raw_result.get("status", "LOW RISK")
-        actions = raw_result.get("recommended_actions", [])
-        reasons = raw_result.get("possible_reasons", [])
-
-        # Build dynamic presentation cards
-        cards = []
-        for idx, action in enumerate(actions):
-            act_lower = action.lower()
-            if "schedule" in act_lower or "allocat" in act_lower or "recover" in act_lower or "target" in act_lower:
-                title = "Adjust Shift Scheduling & Target Allocation"
-                category = "Production Schedule"
-                icon_type = "target"
-                badge_class = "green-card"
-                priority = "High Priority" if status == "HIGH RISK" else ("Medium Priority" if status == "MEDIUM RISK" else "Low Priority")
-            elif "equipment" in act_lower or "repair" in act_lower or "maintenance" in act_lower or "downtime" in act_lower:
-                title = "Optimize Heavy Equipment Availability & Maintenance"
-                category = "Equipment Management"
-                icon_type = "gear"
-                badge_class = "purple-card"
-                priority = "High Priority" if "prioritize" in act_lower or "repair" in act_lower else "Medium Priority"
-            elif "blasting" in act_lower or "drilling" in act_lower or "rock" in act_lower:
-                title = "Optimize Blasting Parameters & Drilling Patterns"
-                category = "Drilling & Blasting"
-                icon_type = "drill"
-                badge_class = "green-card"
-                priority = "Medium Priority"
-            elif "wind" in act_lower or "rainfall" in act_lower or "rain" in act_lower:
-                title = "Weather Mitigation & Safe Haulage Operations"
-                category = "Weather & Environment"
-                icon_type = "weather"
-                badge_class = "blue-card"
-                priority = "High Priority" if "heavy" in act_lower or "temporarily adjust" in act_lower else "Medium Priority"
-            elif "soil" in act_lower or "haul road" in act_lower or "drainage" in act_lower:
-                title = "Ground Drainage & Haul Road Stabilization"
-                category = "Haul Road Infrastructure"
-                icon_type = "sprout"
-                badge_class = "blue-card"
-                priority = "Medium Priority"
-            else:
-                title = f"Operational Recommendation #{idx + 1}"
-                category = "General Mining Operations"
-                icon_type = "bulb"
-                badge_class = "blue-card"
-                priority = "Low Priority"
-
-            # Assign matching supporting reasons if available
-            matched_reasons = []
-            for r in reasons:
-                r_low = r.lower()
-                if ("wind" in act_lower and "wind" in r_low) or                    ("rain" in act_lower and ("rain" in r_low or "precip" in r_low)) or                    ("soil" in act_lower and ("soil" in r_low or "moisture" in r_low)) or                    ("equipment" in act_lower and "equipment" in r_low) or                    ("downtime" in act_lower and "downtime" in r_low) or                    ("rock" in act_lower and "rock" in r_low) or                    ("drilling" in act_lower and "drilling" in r_low):
-                    matched_reasons.append(r)
-
-            if not matched_reasons and reasons:
-                matched_reasons.append(reasons[idx % len(reasons)])
-
-            cards.append({
-                "id": idx + 1,
-                "title": title,
-                "category": category,
-                "action": action,
-                "explanation": action,
-                "supporting_points": matched_reasons if matched_reasons else [f"Shortfall context: {raw_result.get('shortfall_tonnes', 0)} tonnes ({raw_result.get('shortfall_percentage', 0)}%)"],
-                "priority": priority,
-                "icon_type": icon_type,
-                "card_style": badge_class
-            })
-
-        return {
-            "success": True,
-            "mine": data.get("mine") or "Balaghat",
-            "date": data.get("date") or "2026-09-14",
-            "status": status,
-            "target_production": raw_result.get("target_production", target),
-            "predicted_production": raw_result.get("predicted_production", predicted),
-            "shortfall_tonnes": raw_result.get("shortfall_tonnes", 0.0),
-            "shortfall_percentage": raw_result.get("shortfall_percentage", 0.0),
-            "possible_reasons": reasons,
-            "recommended_actions": actions,
-            "cards": cards
-        }
+            raw_result = generate_recommendations(
+                target_production=target,
+                predicted_production=predicted,
+                temperature=temp,
+                wind_speed=wind,
+                humidity=humidity,
+                precipitation=precip,
+                soil_moisture=soil_m
+            )
+            return {
+                "success": True,
+                "mine": data.get("mine") or "Balaghat",
+                "date": data.get("date") or "2026-09-14",
+                "status": raw_result.get("status", "LOW RISK"),
+                "target_production": raw_result.get("target_production", target),
+                "predicted_production": raw_result.get("predicted_production", predicted),
+                "shortfall_tonnes": raw_result.get("shortfall_tonnes", 0.0),
+                "shortfall_percentage": raw_result.get("shortfall_percentage", 0.0),
+                "possible_reasons": raw_result.get("possible_reasons", []),
+                "recommended_actions": raw_result.get("recommended_actions", []),
+                "cards": []
+            }
 
 
 recommendation_service = RecommendationService()

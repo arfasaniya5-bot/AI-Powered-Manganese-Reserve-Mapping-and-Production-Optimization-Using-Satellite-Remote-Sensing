@@ -7,17 +7,17 @@ const ProductionStepThree = ({
   onNext,
   loading = false,
   error = null,
+  weatherData = null,
+  weatherLoading = false,
+  weatherError = null,
+  soilMoistureUnavailable = false,
+  onRetryWeather = null,
 }) => {
-  const [envMode, setEnvMode] = useState('manual');
   const [geoFile, setGeoFile] = useState(null);
   const [equipFile, setEquipFile] = useState(null);
 
   const geoInputRef = useRef(null);
   const equipInputRef = useRef(null);
-
-  const handleEnvChange = (field, val) => {
-    onChange({ [field]: parseFloat(val) || 0 });
-  };
 
   const handleGeoUpload = (e) => {
     const file = e.target.files[0];
@@ -35,6 +35,14 @@ const ProductionStepThree = ({
     }
   };
 
+  const isPredictionBlocked = (
+    loading ||
+    weatherLoading ||
+    soilMoistureUnavailable ||
+    formData.soil_moisture === null ||
+    formData.soil_moisture === undefined
+  );
+
   return (
     <div className="forecast-step-container">
       <div className="forecast-step-header">
@@ -49,116 +57,115 @@ const ProductionStepThree = ({
       )}
 
       <div className="forecast-step3-grid">
-        {/* Card A: Environmental Information */}
-        <div className="additional-card env-card">
+        {/* Card A: Weather Forecast (Live data via Open-Meteo, replacing manual inputs & CSV) */}
+        <div className="additional-card env-card weather-forecast-card">
           <div className="additional-card-header">
             <div className="card-badge green-badge">
               <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z" />
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" />
               </svg>
             </div>
-            <h3 className="additional-card-title">Environmental Information</h3>
-          </div>
-
-          <div className="mode-toggle-group compact">
-            <label className="radio-label">
-              <input
-                type="radio"
-                name="envMode"
-                value="manual"
-                checked={envMode === 'manual'}
-                onChange={() => setEnvMode('manual')}
-              />
-              <span>Enter manually</span>
-            </label>
-            <label className="radio-label">
-              <input
-                type="radio"
-                name="envMode"
-                value="csv"
-                checked={envMode === 'csv'}
-                onChange={() => setEnvMode('csv')}
-              />
-              <span>Upload CSV file</span>
-            </label>
-          </div>
-
-          {envMode === 'manual' ? (
-            <div className="env-fields-list">
-              <div className="forecast-field-group mini">
-                <label className="forecast-label">Temperature (°C)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="forecast-input"
-                  value={formData.temperature !== undefined ? formData.temperature : 16.4}
-                  onChange={(e) => handleEnvChange('temperature', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="forecast-field-group mini">
-                <label className="forecast-label">Wind Speed (m/s)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="forecast-input"
-                  value={formData.wind_speed !== undefined ? formData.wind_speed : 2.3}
-                  onChange={(e) => handleEnvChange('wind_speed', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="forecast-field-group mini">
-                <label className="forecast-label">Relative Humidity (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="forecast-input"
-                  value={formData.humidity !== undefined ? formData.humidity : 52.1}
-                  onChange={(e) => handleEnvChange('humidity', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="forecast-field-group mini">
-                <label className="forecast-label">Precipitation (mm)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="forecast-input"
-                  value={formData.precipitation !== undefined ? formData.precipitation : 0}
-                  onChange={(e) => handleEnvChange('precipitation', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="forecast-field-group mini">
-                <label className="forecast-label">Soil Moisture (0–100 cm)</label>
-                <input
-                  type="number"
-                  step="0.001"
-                  className="forecast-input"
-                  value={formData.soil_moisture !== undefined ? formData.soil_moisture : 0.304}
-                  onChange={(e) => handleEnvChange('soil_moisture', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
+            <div className="card-header-text">
+              <h3 className="additional-card-title">Weather Forecast</h3>
+              <span className="weather-site-badge">
+                📍 {formData.mine || 'Balaghat'} • {formData.date || 'Today'}
+              </span>
             </div>
-          ) : (
-            <div className="env-csv-upload-box">
-              <p className="upload-note">Upload MOIL Weather & Soil CSV file</p>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => {
-                  if (e.target.files[0]) {
-                    onChange({ weather_file_name: e.target.files[0].name });
-                  }
-                }}
-              />
+          </div>
+
+          {weatherLoading && (
+            <div className="weather-status-box loading">
+              <div className="weather-spinner"></div>
+              <span>Fetching live forecast from Open-Meteo...</span>
             </div>
           )}
+
+          {weatherError && !weatherLoading && (
+            <div className="weather-status-box error">
+              <div className="weather-error-header">
+                <span className="error-icon">⚠️</span>
+                <span>Weather data service error</span>
+              </div>
+              <p className="weather-error-detail">{weatherError}</p>
+              {onRetryWeather && (
+                <button
+                  type="button"
+                  className="weather-retry-btn"
+                  onClick={onRetryWeather}
+                >
+                  Retry Connection
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="weather-rows-list">
+            <div className="weather-row">
+              <span className="weather-label">Temperature (°C)</span>
+              <span className="weather-value">
+                {formData.temperature !== null && formData.temperature !== undefined
+                  ? `${formData.temperature} °C`
+                  : (weatherLoading ? '...' : '—')}
+              </span>
+            </div>
+
+            <div className="weather-row">
+              <span className="weather-label">Wind Speed (m/s)</span>
+              <span className="weather-value">
+                {formData.wind_speed !== null && formData.wind_speed !== undefined
+                  ? `${formData.wind_speed} m/s`
+                  : (weatherLoading ? '...' : '—')}
+              </span>
+            </div>
+
+            <div className="weather-row">
+              <span className="weather-label">Relative Humidity (%)</span>
+              <span className="weather-value">
+                {formData.humidity !== null && formData.humidity !== undefined
+                  ? `${formData.humidity} %`
+                  : (weatherLoading ? '...' : '—')}
+              </span>
+            </div>
+
+            <div className="weather-row">
+              <span className="weather-label">Precipitation (mm)</span>
+              <span className="weather-value">
+                {formData.precipitation !== null && formData.precipitation !== undefined
+                  ? `${formData.precipitation} mm`
+                  : (weatherLoading ? '...' : '—')}
+              </span>
+            </div>
+
+            <div className="weather-row highlight-sm">
+              <span className="weather-label">Soil Moisture (0–100 cm)</span>
+              <span className={`weather-value ${soilMoistureUnavailable ? 'unavailable' : ''}`}>
+                {soilMoistureUnavailable ? (
+                  <span className="badge-unavailable">Not available</span>
+                ) : (
+                  formData.soil_moisture !== null && formData.soil_moisture !== undefined
+                    ? `${formData.soil_moisture} m³/m³`
+                    : (weatherLoading ? '...' : '—')
+                )}
+              </span>
+            </div>
+          </div>
+
+          {soilMoistureUnavailable && !weatherLoading && (
+            <div className="weather-warning-callout">
+              <span className="callout-icon">⚠️</span>
+              <div className="callout-content">
+                <strong>Analysis Blocked</strong>
+                <p>Soil moisture data unavailable for this location/date — cannot proceed.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="weather-card-footer">
+            <span className="weather-source-tag">Source: Open-Meteo live API</span>
+            {weatherData?.forecast_time && (
+              <span className="weather-time-tag">Observed: {weatherData.forecast_time}</span>
+            )}
+          </div>
         </div>
 
         {/* Card B: Geological Information */}
@@ -274,7 +281,8 @@ const ProductionStepThree = ({
           type="button"
           className="forecast-btn-primary"
           onClick={onNext}
-          disabled={loading}
+          disabled={isPredictionBlocked}
+          title={soilMoistureUnavailable ? 'Soil moisture data unavailable for this location/date — cannot proceed' : ''}
         >
           {loading ? 'Running AI Model...' : 'Next →'}
         </button>

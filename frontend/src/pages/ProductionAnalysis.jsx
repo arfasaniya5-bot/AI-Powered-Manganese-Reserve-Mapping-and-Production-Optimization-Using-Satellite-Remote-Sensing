@@ -7,7 +7,7 @@
  * 3. MOIL Weather & Soil 2025
  * 4. MWD Rock Type & Blast-Holes Model Ready
  *
- * Adheres strictly to the ManganeseInsight design system:
+ * Adheres strictly to the GeoMineAI design system:
  * - Displays dataset connection status, record counts, and available columns.
  * - Shows aggregated production summaries, equipment loss, and weather indicators.
  * - Displays a clear notice that the AI/ML model integration hook is ready.

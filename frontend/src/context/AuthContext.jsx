@@ -1,7 +1,7 @@
 /**
  * AuthContext Component
  * ---------------------
- * Global authentication state provider for the ManganeseInsight application.
+ * Global authentication state provider for the GeoMineAI application.
  * Manages user/admin login states, session synchronization with localStorage,
  * and handles protected route authorization.
  */

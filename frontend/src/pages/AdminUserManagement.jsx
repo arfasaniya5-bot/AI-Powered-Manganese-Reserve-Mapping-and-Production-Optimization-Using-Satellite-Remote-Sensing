@@ -139,7 +139,7 @@ const AdminUserManagement = () => {
           </div>
           <div className="admin-brand-text">
             <h2 className="admin-brand-title">MOIL</h2>
-            <h3 className="admin-brand-product">ManganeseInsight</h3>
+            <h3 className="admin-brand-product">GeoMineAI</h3>
             <p className="admin-brand-motto">Predict Today, Mine Tomorrow</p>
           </div>
         </div>
@@ -203,7 +203,7 @@ const AdminUserManagement = () => {
           <div className="admin-section-header">
             <div className="admin-title-group">
               <h1 className="admin-page-title">User Management</h1>
-              <p className="admin-page-subtitle">Create and manage user accounts for MOIL ManganeseInsight</p>
+              <p className="admin-page-subtitle">Create and manage user accounts for MOIL GeoMineAI</p>
             </div>
             <button
               type="button"

@@ -84,6 +84,7 @@ class PredictionResponse(BaseModel):
     probability_percentage: Optional[float] = Field(None, description="Model probability expressed as a percentage (e.g. 87.0)")
     potential: Optional[str] = Field(None, description="Potential category: High Potential, Medium Potential, Low Potential")
     key_factors: list[str] = Field(default_factory=list, description="Significant geological or spectral drivers")
+    nearby_deposit: Optional[dict] = Field(None, description="Nearest verified manganese ore deposit within regional exploration radius")
     message: str = Field(
         "Prediction completed successfully.",
         description="Status message"
@@ -102,3 +103,21 @@ class DatasetInfoResponse(BaseModel):
     unique_mines: list[str]
     feature_columns: list[str]
     status: str
+
+
+class ReverseGeocodeRequest(BaseModel):
+    """
+    Schema for reverse geocoding requests.
+    """
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Latitude between -90 and 90")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Longitude between -180 and 180")
+
+
+class ReverseGeocodeResponse(BaseModel):
+    """
+    Schema for reverse geocoding responses.
+    """
+    state: str = Field(default="Not available", description="State or province name")
+    district: str = Field(default="Not available", description="District or county name")
+    village: str = Field(default="Not available", description="Village, town, or locality name")
+

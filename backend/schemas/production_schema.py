@@ -117,3 +117,25 @@ class ProductionShortfallPredictionResponse(BaseModel):
     predicted_production_series: List[Dict[str, Any]] = Field(default_factory=list, description="Predicted production series")
     predicted_series: List[Dict[str, Any]] = Field(default_factory=list, description="Next 7 days predicted series")
     message: Optional[str] = None
+
+
+class WeatherForecastResponse(BaseModel):
+    success: bool = True
+    mine: Optional[str] = Field(None, description="Mine or location name")
+    latitude: float = Field(..., description="Latitude coordinate")
+    longitude: float = Field(..., description="Longitude coordinate")
+    forecast_date: str = Field(..., description="Forecast date (YYYY-MM-DD)")
+    forecast_time: str = Field(..., description="Timestamp of forecast observation")
+    temperature_c: Optional[float] = Field(None, description="Temperature in Celsius")
+    wind_speed_ms: Optional[float] = Field(None, description="Wind speed in m/s")
+    relative_humidity_pct: Optional[float] = Field(None, description="Relative humidity percentage")
+    precipitation_mm: Optional[float] = Field(None, description="Precipitation in mm")
+    soil_moisture_0_100cm: Optional[float] = Field(None, description="Depth-weighted soil moisture ratio (0-100cm)")
+    soil_moisture_available: bool = Field(True, description="Whether soil moisture is available for the given location/date")
+    soil_moisture_sublayers: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Raw sublayer measurements")
+    temperature: Optional[float] = Field(None, description="Temperature alias")
+    wind_speed: Optional[float] = Field(None, description="Wind speed alias")
+    humidity: Optional[float] = Field(None, description="Relative humidity alias")
+    precipitation: Optional[float] = Field(None, description="Precipitation alias")
+    soil_moisture: Optional[float] = Field(None, description="Soil moisture alias")
+    source: str = Field("Open-Meteo", description="Data provider")

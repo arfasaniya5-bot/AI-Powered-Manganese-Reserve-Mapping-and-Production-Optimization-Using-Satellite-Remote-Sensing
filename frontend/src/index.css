@@ -1,5 +1,5 @@
 /* ==============================================================================
-   ManganeseInsight Global Stylesheet
+   GeoMineAI Global Stylesheet
    Matching Reference Images: Dashboard & Ore / Deposit Prediction
    ============================================================================== */
 
@@ -459,7 +459,51 @@ button, input, select, textarea {
 
 .form-actions {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.form-actions-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.auto-predict-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+  text-align: center;
+}
+
+.selected-coords-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.selected-coords-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #22c55e;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.selected-coords-text strong {
+  color: #166534;
+  font-weight: 700;
 }
 
 .btn-predict {
@@ -639,6 +683,12 @@ button, input, select, textarea {
   border-radius: 8px;
   background-color: #e2e8f0;
   z-index: 1;
+  cursor: grab;
+}
+
+.leaflet-container:active,
+.leaflet-container.leaflet-drag-target {
+  cursor: grabbing;
 }
 
 /* Custom Marker Styling */
@@ -647,12 +697,12 @@ button, input, select, textarea {
   border: none !important;
 }
 
-/* Map Reposition Banner below map */
+/* Map Reposition Guidance Banner (Top-Left, alongside zoom +/- controls) */
 .map-reposition-banner {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 1000;
+  top: 12px;
+  left: 54px;
+  z-index: 999;
   background-color: rgba(15, 23, 42, 0.9);
   color: #ffffff;
   font-size: 11.5px;
@@ -663,6 +713,7 @@ button, input, select, textarea {
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .banner-pulse-dot {
@@ -677,6 +728,163 @@ button, input, select, textarea {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.3); opacity: 1; }
   100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* Center Crosshair / Target Reticle Overlay (Fixed at 50% 50%, non-blocking) */
+.map-fixed-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+
+/* Top-Center Drag Hint Pill matching Reference Screenshot */
+.map-drag-hint-pill {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+  background: rgba(30, 41, 59, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+}
+
+.hint-icon-circle {
+  width: 20px;
+  height: 20px;
+  background-color: #0284c7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hint-icon-circle svg {
+  width: 14px;
+  height: 14px;
+  color: #ffffff;
+}
+
+.hint-text-group {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.hint-line-primary {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.hint-line-secondary {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* Bottom-Center Floating Map Center Card matching Reference Screenshot */
+.map-center-coords-card {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 8px 20px;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #cbd5e1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.center-coords-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.center-coords-sublabel {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Sub-map Guidance Bar matching Reference Screenshot */
+.map-bottom-guidance-bar {
+  margin-top: 10px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.guidance-crosshair-icon {
+  width: 16px;
+  height: 16px;
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+/* Real-time Center Coordinates Pill (Legacy fallback) */
+.map-live-center-coords {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #f8fafc;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.map-live-center-coords .coords-crosshair-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.map-live-center-coords .coords-val {
+  color: #38bdf8;
+  font-weight: 700;
 }
 
 .form-info-banner {
@@ -702,15 +910,16 @@ button, input, select, textarea {
 .map-legend-overlay {
   position: absolute;
   bottom: 16px;
-  right: 16px;
+  left: 16px;
   z-index: 1000;
   background-color: rgba(255, 255, 255, 0.95);
   padding: 10px 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
   gap: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .legend-item {
@@ -968,22 +1177,44 @@ button, input, select, textarea {
 .location-detail-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .detail-row {
   display: flex;
+  align-items: center;
   font-size: 13px;
 }
 
+.detail-icon-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 145px;
+  color: #475569;
+}
+
+.detail-icon {
+  width: 15px;
+  height: 15px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
 .detail-key {
-  width: 120px;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
+.detail-colon {
+  width: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .detail-val {
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: #0f172a;
 }
 
 
@@ -1375,6 +1606,194 @@ button, input, select, textarea {
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
+}
+
+/* --- Weather Forecast Card in Step 3 --- */
+.additional-card.weather-forecast-card {
+  background: #fcfdfa;
+  border-color: #bbf7d0;
+}
+
+.card-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weather-site-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: #16a34a;
+  background: #f0fdf4;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid #dcfce7;
+  width: fit-content;
+}
+
+.weather-status-box {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-status-box.loading {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.weather-status-box.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.weather-error-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.weather-error-detail {
+  font-size: 11px;
+  color: #991b1b;
+  margin: 0;
+}
+
+.weather-retry-btn {
+  background: #ffffff;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.weather-retry-btn:hover {
+  background: #fee2e2;
+}
+
+.weather-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #bbf7d0;
+  border-top-color: #16a34a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.weather-rows-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+
+.weather-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.weather-row.highlight-sm {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.weather-label {
+  font-weight: 500;
+  color: #475569;
+}
+
+.weather-value {
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-value.unavailable {
+  color: #dc2626;
+}
+
+.badge-unavailable {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #fca5a5;
+}
+
+.weather-warning-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.weather-warning-callout .callout-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.weather-warning-callout strong {
+  display: block;
+  font-weight: 600;
+  color: #78350f;
+  margin-bottom: 2px;
+}
+
+.weather-warning-callout p {
+  margin: 0;
+  color: #92400e;
+  line-height: 1.35;
+}
+
+.weather-card-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.weather-source-tag {
+  color: #059669;
+  font-weight: 500;
+}
+
+.weather-time-tag {
+  color: #64748b;
+  font-size: 11px;
 }
 
 .card-upload-center {
@@ -2090,6 +2509,478 @@ button, input, select, textarea {
   font-size: 13.5px;
   color: #64748b;
   max-width: 440px;
+}
+
+/* CBR Prototype Disclaimer Banner */
+.recommendations-disclaimer-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recommendations-disclaimer-banner svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+/* Fallback Notice Banner */
+.recommendations-fallback-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #3b82f6;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+/* Simplified GeoMineAI Recommendation Styles */
+.recommendations-notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recommendations-notice-banner svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.rec-section-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.rec-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rec-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.section-sub-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Section 1: Production Status */
+.production-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.status-metric {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 11.5px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+.metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.metric-value.text-danger {
+  color: #dc2626;
+}
+
+.metric-value.text-success {
+  color: #16a34a;
+}
+
+.status-summary-text {
+  font-size: 13.5px;
+  color: #334155;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 16px;
+}
+
+.status-pill.status-high-risk {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-pill.status-medium-risk {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-pill.status-low-risk {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status-pill.status-on-target {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* Section 2: Possible Reasons */
+.reasons-clean-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reason-clean-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.reason-bullet {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #0284c7;
+  flex-shrink: 0;
+  position: relative;
+  top: -1px;
+}
+
+/* Section 3: What You Can Do */
+.action-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simple-action-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+
+.simple-action-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.03);
+}
+
+.action-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.action-num-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.action-number {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0284c7;
+}
+
+.action-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.priority-pill {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.priority-pill.priority-high {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.priority-pill.priority-medium {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.priority-pill.priority-low {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.action-simple-sentence {
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Section 5: Action Status Bar */
+.action-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+}
+
+.status-indicator-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.status-pill-current {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.status-pill-current.status-pending {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-pill-current.status-in-progress {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status-pill-current.status-completed {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.status-pill-current.status-successful {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill-current.status-unsuccessful {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-buttons-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.simple-status-btn {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.simple-status-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.simple-status-btn.active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Section 6: Next Step Box */
+.next-step-box {
+  margin-top: 6px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-left: 4px solid #e11d48;
+  padding: 10px 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: #9f1239;
+  line-height: 1.45;
+}
+
+.next-step-label {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.next-step-content {
+  flex: 1;
+}
+
+/* Section 4: Similar Past Cases */
+.similar-past-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toggle-cases-btn {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0284c7;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-cases-btn:hover {
+  background: #f0f9ff;
+  border-color: #0284c7;
+}
+
+.past-cases-simple-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.past-case-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.past-case-field {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.past-field-label {
+  font-weight: 600;
+  color: #475569;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.past-field-value {
+  color: #1e293b;
+  flex: 1;
+}
+
+.result-tag {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.result-tag.result-successful {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.result-tag.result-reduced {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.result-tag.result-unsuccessful {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.no-cases-text {
+  font-size: 13px;
+  color: #64748b;
+  margin: 8px 0 0 0;
 }
 
 
@@ -3172,6 +4063,7 @@ button, input, select, textarea {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
+  align-items: start;
 }
 
 .dash-summary-card {
@@ -3699,3 +4591,890 @@ button, input, select, textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   GeoMineAI Interactive Dashboard Styles
+   ========================================================================== */
+
+/* Active Mines Attached Popup & Button */
+.card-header-with-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.view-mines-btn {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+
+.view-mines-btn:hover,
+.view-mines-btn.active {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.card-mines-container {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+}
+
+.active-mines-popup-attached {
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  animation: fadeInDown 0.15s ease-out;
+  position: relative;
+  box-sizing: border-box;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popup-attached-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.popup-attached-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.popup-attached-close:hover {
+  color: #475569;
+}
+
+.popup-attached-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin: 5px 0 6px 0;
+}
+
+.popup-attached-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.popup-attached-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  background: #f8fafc;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.popup-attached-item:hover {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.popup-attached-item.active {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.mine-item-text {
+  flex: 1;
+}
+
+.mine-active-check {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0284c7;
+}
+
+.mine-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mine-dot.dot-all {
+  background-color: #64748b;
+}
+
+.mine-dot.dot-mine {
+  background-color: #0284c7;
+}
+
+.mine-item-name {
+  flex: 1;
+}
+
+.check-badge {
+  font-size: 10.5px;
+  color: #0284c7;
+  font-weight: 600;
+}
+
+/* Active Filter Pill in Top Header */
+.dash-active-filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.filter-pill-label {
+  color: #0369a1;
+  font-weight: 500;
+}
+
+.filter-pill-mine {
+  color: #0c4a6e;
+  font-weight: 700;
+}
+
+.filter-pill-clear {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.filter-pill-clear:hover {
+  background: #0369a1;
+}
+
+/* Production Trend Graph & Toggles */
+.selected-mine-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.selected-mine-tag {
+  background: #e0f2fe;
+  color: #0284c7;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #bae6fd;
+}
+
+.cluster-tag {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  display: block;
+}
+
+.dash-reset-filter-btn {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dash-reset-filter-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.dash-reset-filter-btn.small {
+  font-size: 10.5px;
+  padding: 1px 6px;
+}
+
+.chart-view-toggles {
+  display: inline-flex;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.toggle-pill {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle-pill:hover {
+  color: #1e293b;
+}
+
+.toggle-pill.active {
+  background: #ffffff;
+  color: #0284c7;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Floating Tooltip in Trend Graph */
+.trend-tooltip-floating {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+
+.tooltip-head {
+  font-size: 11px;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.tooltip-head strong {
+  color: #f8fafc;
+}
+
+.tooltip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-row.variance {
+  margin-top: 2px;
+  padding-top: 3px;
+  border-top: 1px dashed #334155;
+}
+
+.tooltip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.tooltip-dot.blue { background-color: #38bdf8; }
+.tooltip-dot.green { background-color: #34d399; }
+
+.text-green { color: #34d399 !important; }
+.text-red { color: #f87171 !important; }
+
+/* Interactive Table Rows */
+.table-interactive-hint {
+  font-size: 11px;
+  color: #0284c7;
+  font-weight: 500;
+}
+
+.clickable-table-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-left-color 0.15s ease;
+}
+
+.clickable-table-row:hover {
+  background-color: #f0f9ff !important;
+}
+
+.selected-table-row {
+  background-color: #e0f2fe !important;
+  border-left: 3px solid #0284c7;
+}
+
+.mine-cell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #0284c7;
+}
+
+.table-active-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11px;
+  color: #475569;
+}
+
+.table-reset-btn {
+  background: none;
+  border: none;
+  color: #0284c7;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.table-reset-btn:hover {
+  text-decoration: underline;
+}
+
+/* Shortfall Donut Interactive Slices */
+.donut-mine-tag {
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.donut-slice-achieved,
+.donut-slice-shortfall {
+  cursor: pointer;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
+}
+
+.donut-slice-achieved:hover,
+.donut-slice-shortfall:hover {
+  stroke-width: 23px;
+  opacity: 0.9;
+}
+
+.donut-center-tonnes.hovered {
+  fill: #0284c7;
+}
+
+.donut-legend-entry {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.donut-legend-entry:hover,
+.donut-legend-entry.hovered {
+  background-color: #f1f5f9;
+}
+
+.donut-target-readout {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.donut-target-readout strong {
+  color: #1e293b;
+}
+
+/* Full India Reserves Interactive Map */
+.india-reserves-interactive-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.reserves-map-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+}
+
+.reserves-color-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.legend-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.color-swatch-highlight {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 1.5px solid #0369a1;
+}
+
+.color-swatch-neutral {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+}
+
+.reserves-hint-text {
+  font-size: 10.5px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.india-leaflet-frame {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.india-leaflet-canvas {
+  width: 100%;
+  height: 100%;
+  background: #f8fafc;
+}
+
+.india-leaflet-canvas .leaflet-tile-pane {
+  filter: saturate(0.85) contrast(0.96);
+}
+
+/* Map Programmatic Zoom Controls */
+.india-map-zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-ctrl-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.15s ease;
+}
+
+.map-ctrl-btn:hover {
+  background: #f8fafc;
+  color: #0284c7;
+  border-color: #94a3b8;
+}
+
+.map-ctrl-btn.reset-btn {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Leaflet Node Tooltip */
+.reserves-node-tooltip {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.map-tooltip-content {
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+.tooltip-title {
+  display: block;
+  font-size: 12.5px;
+  color: #0f172a;
+  margin-bottom: 3px;
+}
+
+.tooltip-metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.metric-tag {
+  color: #64748b;
+}
+
+.metric-bold {
+  color: #0284c7;
+  font-weight: 700;
+}
+
+.metric-pct {
+  color: #475569;
+}
+
+.tooltip-sub {
+  margin: 3px 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.tooltip-mines {
+  margin: 4px 0 0 0;
+  font-size: 11px;
+  color: #334155;
+}
+
+.tooltip-mines strong {
+  color: #0284c7;
+}
+
+/* Bottom Detail Drawer inside Map Frame */
+.map-node-detail-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  border-top: 1px solid #cbd5e1;
+  padding: 10px 14px;
+  z-index: 1000;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.detail-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-state-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.detail-reserves-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #e0f2fe;
+  color: #0284c7;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid #bae6fd;
+}
+
+.detail-close-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.detail-close-btn:hover {
+  color: #475569;
+}
+
+.detail-body-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  margin-bottom: 6px;
+}
+
+.detail-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.detail-val {
+  color: #334155;
+  font-weight: 600;
+}
+
+.detail-mines-cluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-mine-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mine-chip-interactive {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 14px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mine-chip-interactive:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+  transform: translateY(-1px);
+}
+
+.mine-chip-interactive.chip-active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.reserves-map-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.footer-citation {
+  font-size: 10px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Ore Prediction: Preset Mines Bar & Nearby Deposit Proximity Banner
+   ========================================================================== */
+.preset-mines-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.preset-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+}
+
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.preset-chip:hover {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.15);
+}
+
+.chip-name {
+  font-size: 12px;
+}
+
+.chip-badge {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+/* Nearby Deposit Banner in Prediction Result */
+.nearby-deposit-banner {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.06);
+}
+
+.nearby-banner-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nearby-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e40af;
+  background: #dbeafe;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.nearby-dist-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.nearby-message {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #1e3a8a;
+  margin-bottom: 12px;
+}
+
+.btn-inspect-nearby {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.btn-inspect-nearby:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
+}
+
+.btn-inspect-nearby .btn-icon {
+  width: 14px;
+  height: 14px;
+}
+

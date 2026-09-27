@@ -279,5 +279,148 @@ class DBService:
             print(f"[DB Error] Could not retrieve latest recommendation: {exc}")
             return None
 
+    def save_recommendation_history(self, rec: Dict[str, Any]) -> Optional[int]:
+        """
+        Saves a recommendation history record for progressive tracking (Part B.7 & B.8).
+        """
+        try:
+            conn = db_manager.get_connection()
+            query = """
+                INSERT INTO `recommendation_history` (
+                    `recommendation_id`, `date`, `mine`, `equipment_id`,
+                    `problem_type`, `trigger_context`, `recommended_action`,
+                    `action_status`, `action_date`, `outcome`, `follow_up_action`,
+                    `supporting_case_ids`, `similarity_score`
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    `recommended_action` = VALUES(`recommended_action`),
+                    `action_status` = VALUES(`action_status`),
+                    `outcome` = VALUES(`outcome`),
+                    `follow_up_action` = VALUES(`follow_up_action`),
+                    `similarity_score` = VALUES(`similarity_score`),
+                    `updated_at` = CURRENT_TIMESTAMP;
+            """
+            cases = rec.get("supporting_case_ids")
+            if isinstance(cases, list):
+                cases_str = ",".join(str(c) for c in cases)
+            else:
+                cases_str = str(cases or "")
+
+            params = (
+                str(rec.get("recommendation_id")),
+                str(rec.get("date") or ""),
+                str(rec.get("mine") or "Balaghat"),
+                str(rec.get("equipment_id") or "") if rec.get("equipment_id") else None,
+                str(rec.get("problem_type") or "Production Shortfall"),
+                str(rec.get("trigger_context") or ""),
+                str(rec.get("recommended_action") or ""),
+                str(rec.get("action_status") or "PENDING"),
+                str(rec.get("action_date") or rec.get("date") or ""),
+                str(rec.get("outcome") or "") if rec.get("outcome") else None,
+                str(rec.get("follow_up_action") or "") if rec.get("follow_up_action") else None,
+                cases_str,
+                float(rec.get("similarity_score") or 0.0)
+            )
+
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                hist_id = cursor.lastrowid
+            conn.close()
+            return hist_id
+        except Exception as exc:
+            print(f"[DB Error] Could not save recommendation history: {exc}")
+            return None
+
+    def get_recommendation_history(
+        self,
+        mine: Optional[str] = None,
+        limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves historical recommendation records, optionally filtered by mine.
+        """
+        try:
+            conn = db_manager.get_connection()
+            if mine:
+                query = "SELECT * FROM `recommendation_history` WHERE LOWER(`mine`) = LOWER(%s) ORDER BY `id` DESC LIMIT %s;"
+                params = (mine.strip(), limit)
+            else:
+                query = "SELECT * FROM `recommendation_history` ORDER BY `id` DESC LIMIT %s;"
+                params = (limit,)
+
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+            conn.close()
+            return rows
+        except Exception as exc:
+            print(f"[DB Error] Could not fetch recommendation history: {exc}")
+            return []
+
+    def update_recommendation_status(
+        self,
+        recommendation_id: str,
+        status: str,
+        outcome: Optional[str] = None,
+        follow_up: Optional[str] = None
+    ) -> bool:
+        """
+        Updates the status, outcome, or follow-up action of an existing recommendation.
+        """
+        try:
+            conn = db_manager.get_connection()
+            query = """
+                UPDATE `recommendation_history`
+                SET `action_status` = %s,
+                    `outcome` = COALESCE(%s, `outcome`),
+                    `follow_up_action` = COALESCE(%s, `follow_up_action`),
+                    `updated_at` = CURRENT_TIMESTAMP
+                WHERE `recommendation_id` = %s;
+            """
+            with conn.cursor() as cursor:
+                cursor.execute(query, (status, outcome, follow_up, recommendation_id))
+            conn.close()
+            return True
+        except Exception as exc:
+            print(f"[DB Error] Could not update recommendation status: {exc}")
+            return False
+
+    def get_prior_recommendations_for_problem(
+        self,
+        mine: str,
+        problem_type: Optional[str] = None,
+        equipment_id: Optional[str] = None,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Finds previous recommendations for the same mine/equipment/problem
+        to support progressive recommendation logic (Part B.8).
+        """
+        try:
+            conn = db_manager.get_connection()
+            conditions = ["LOWER(`mine`) = LOWER(%s)"]
+            params: List[Any] = [mine.strip()]
+
+            if equipment_id:
+                conditions.append("`equipment_id` = %s")
+                params.append(equipment_id.strip())
+
+            if problem_type:
+                conditions.append("LOWER(`problem_type`) LIKE LOWER(%s)")
+                params.append(f"%{problem_type.strip()}%")
+
+            where_clause = " AND ".join(conditions)
+            query = f"SELECT * FROM `recommendation_history` WHERE {where_clause} ORDER BY `id` DESC LIMIT %s;"
+            params.append(limit)
+
+            with conn.cursor() as cursor:
+                cursor.execute(query, tuple(params))
+                rows = cursor.fetchall()
+            conn.close()
+            return rows
+        except Exception as exc:
+            print(f"[DB Error] Could not fetch prior recommendations: {exc}")
+            return []
+
 
 db_service = DBService()

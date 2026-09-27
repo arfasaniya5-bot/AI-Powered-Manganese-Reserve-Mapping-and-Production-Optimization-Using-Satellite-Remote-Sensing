@@ -69,7 +69,7 @@ const UserLogin = () => {
                 </svg>
               </div>
               <h1 className="brand-moil-title">MOIL</h1>
-              <h2 className="brand-platform-name">ManganeseInsight</h2>
+              <h2 className="brand-platform-name">GeoMineAI</h2>
               <p className="brand-platform-motto">Predict Today, Mine Tomorrow</p>
             </div>
 

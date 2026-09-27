@@ -1,21 +1,14 @@
 /**
  * LocationMap Component
  * ---------------------
- * Interactive map component featuring automatic centering, live marker movement,
- * and dynamic layer switching between Satellite imagery and Street/Topo map.
- * 
- * Key fixes and capabilities:
- * 1. Fixed height: 450px explicitly declared on both the wrapper and MapContainer.
- * 2. Auto-resizing: Calls map.invalidateSize() on mount and layer toggle to ensure
- *    tiles never fail to render.
- * 3. Satellite and Street layers:
- *    - Street: OpenStreetMap standard tiles
- *    - Satellite: Esri World Imagery high-resolution satellite tiles
- *    - Prepared for dynamic Google Earth Engine raster tiles via `geeTileUrl` prop.
- * 4. Automatic Marker Movement:
- *    Marker updates immediately as latitude and longitude change, with smooth `flyTo` animation.
- * 5. Full Zoom Controls (+ / -) enabled.
- * 6. Legend and Coordinates Pill placed inside the map card container.
+ * Interactive geospatial map component featuring:
+ * 1. Full mouse click-and-drag and touchscreen/finger pan.
+ * 2. requestAnimationFrame-throttled real-time center coordinate readout during 'move' events.
+ * 3. Fixed center crosshair reticle showing the exact target coordinates at the center.
+ * 4. Click/tap location selection with smooth pan and onLocationSelect invocation.
+ * 5. Drag-release ('moveend') callback for settled coordinate synchronization and reverse geocoding.
+ * 6. Dual-layer switcher between Satellite imagery and Street/Topo map.
+ * 7. Overlays matching reference mockup: top hint pill, floating bottom-center card, bottom-left legend, guidance bar.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -31,7 +24,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// Custom high-contrast red map pin SVG icon matching Reference Image 2 & 3
+// Custom high-contrast red map pin SVG icon matching Reference Image
 const createCustomPinIcon = () => {
   const pinSvg = `
     <svg width="34" height="42" viewBox="0 0 34 42" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -52,12 +45,41 @@ const customPin = createCustomPinIcon();
 
 /**
  * Controller child component that handles:
- * 1. Automatic flyTo when latitude or longitude changes.
- * 2. InvalidateSize on mount to ensure tiles are immediately visible.
+ * 1. Smooth flyTo when latitude or longitude changes (with threshold check).
+ * 2. InvalidateSize on mount and layer change to ensure tiles are immediately visible.
  * 3. Bidirectional layer change listening from Leaflet LayersControl.
+ * 4. Explicit dragging & touch interaction enablement.
+ * 5. requestAnimationFrame-throttled center coordinate updates during mouse/touch drag ('move', 'drag').
+ * 6. Settled coordinate emission on 'moveend'.
+ * 7. Click-to-select map handler with smooth pan and onLocationSelect invocation.
  */
-const MapViewController = ({ targetLocation, zoomLevel = 9, activeLayer, onLayerChange }) => {
+const MapViewController = ({
+  targetLocation,
+  zoomLevel = 9,
+  activeLayer,
+  onLayerChange,
+  onCenterChange,
+  onDragEnd,
+  onLocationSelect,
+}) => {
   const map = useMap();
+
+  // Ensure map dragging and touch controls are fully active
+  useEffect(() => {
+    if (!map) return;
+    if (map.dragging && !map.dragging.enabled()) {
+      map.dragging.enable();
+    }
+    if (map.touchZoom && !map.touchZoom.enabled()) {
+      map.touchZoom.enable();
+    }
+    if (map.doubleClickZoom && !map.doubleClickZoom.enabled()) {
+      map.doubleClickZoom.enable();
+    }
+    if (map.scrollWheelZoom && !map.scrollWheelZoom.enabled()) {
+      map.scrollWheelZoom.enable();
+    }
+  }, [map]);
 
   // Invalidate map size to prevent gray/empty tile issues
   useEffect(() => {
@@ -82,7 +104,85 @@ const MapViewController = ({ targetLocation, zoomLevel = 9, activeLayer, onLayer
     };
   }, [map, onLayerChange]);
 
-  // Smooth camera flyTo when coordinates change
+  // Continuously track center coordinates during mouse/touch drag with requestAnimationFrame throttling
+  useEffect(() => {
+    if (!map || !onCenterChange) return;
+
+    let rafId = null;
+
+    const handleCenterUpdate = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const center = map.getCenter();
+        if (center && typeof center.lat === 'number' && typeof center.lng === 'number') {
+          onCenterChange({
+            latitude: Number(center.lat.toFixed(4)),
+            longitude: Number(center.lng.toFixed(4)),
+          });
+        }
+      });
+    };
+
+    map.on('move', handleCenterUpdate);
+    map.on('drag', handleCenterUpdate);
+
+    // On drag release / moveend: cancel pending RAF, emit final settled coordinates
+    const handleMoveEnd = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      const center = map.getCenter();
+      if (center && typeof center.lat === 'number' && typeof center.lng === 'number') {
+        const cleanLat = Number(center.lat.toFixed(4));
+        const cleanLon = Number(center.lng.toFixed(4));
+        onCenterChange({
+          latitude: cleanLat,
+          longitude: cleanLon,
+        });
+        if (onDragEnd) {
+          onDragEnd(cleanLat, cleanLon);
+        }
+      }
+    };
+
+    map.on('moveend', handleMoveEnd);
+
+    // Initial center update
+    handleCenterUpdate();
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      map.off('move', handleCenterUpdate);
+      map.off('drag', handleCenterUpdate);
+      map.off('moveend', handleMoveEnd);
+    };
+  }, [map, onCenterChange, onDragEnd]);
+
+  // Map click handler: panTo clicked point without snapping, and trigger location selection
+  useEffect(() => {
+    if (!map || !onLocationSelect) return;
+
+    const handleMapClick = (e) => {
+      if (!e.latlng) return;
+      const cleanLat = Number(e.latlng.lat.toFixed(4));
+      const cleanLon = Number(e.latlng.lng.toFixed(4));
+
+      // Smoothly pan camera to clicked point
+      map.panTo([cleanLat, cleanLon], { animate: true, duration: 0.5 });
+
+      // Notify parent to update marker, form inputs, reverse geocoding, and trigger prediction
+      onLocationSelect(cleanLat, cleanLon);
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [map, onLocationSelect]);
+
+  // Smooth camera flyTo when coordinates change externally (e.g. typed in form or clicked in preset)
   useEffect(() => {
     if (
       targetLocation &&
@@ -91,17 +191,30 @@ const MapViewController = ({ targetLocation, zoomLevel = 9, activeLayer, onLayer
       !isNaN(targetLocation.latitude) &&
       !isNaN(targetLocation.longitude)
     ) {
-      map.flyTo([targetLocation.latitude, targetLocation.longitude], zoomLevel, {
-        animate: true,
-        duration: 1.2,
-      });
+      const currentCenter = map.getCenter();
+      const latDiff = Math.abs(currentCenter.lat - targetLocation.latitude);
+      const lonDiff = Math.abs(currentCenter.lng - targetLocation.longitude);
+
+      // Only flyTo if the change is significant (> 0.0005 deg)
+      // If within 0.0005 deg, panTo from map click already handled it smoothly
+      if (latDiff > 0.0005 || lonDiff > 0.0005) {
+        map.flyTo([targetLocation.latitude, targetLocation.longitude], zoomLevel, {
+          animate: true,
+          duration: 1.0,
+        });
+      }
     }
   }, [targetLocation?.latitude, targetLocation?.longitude, zoomLevel, map]);
 
   return null;
 };
 
-const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
+const LocationMap = ({
+  selectedLocation,
+  onLocationSelect = null,
+  onDragEnd = null,
+  geeTileUrl = null,
+}) => {
   // Layer mode: 'street' (default) or 'satellite'
   const [activeLayer, setActiveLayer] = useState('street');
 
@@ -113,6 +226,22 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
     typeof currentLocation.longitude === 'number' &&
     !isNaN(currentLocation.latitude) &&
     !isNaN(currentLocation.longitude);
+
+  // Live map center coordinates (continuously updated while dragging map with mouse or finger)
+  const [centerCoords, setCenterCoords] = useState({
+    latitude: hasValidLocation ? currentLocation.latitude : 18.5234,
+    longitude: hasValidLocation ? currentLocation.longitude : 79.1234,
+  });
+
+  // Keep centerCoords in sync if targetLocation changes externally
+  useEffect(() => {
+    if (hasValidLocation) {
+      setCenterCoords({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+      });
+    }
+  }, [currentLocation.latitude, currentLocation.longitude, hasValidLocation]);
 
   // Tile layer configurations
   const streetTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -128,14 +257,14 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
 
   return (
     <section className="card map-card" aria-labelledby="map-heading">
-      {/* Map Header with Layer Toggle and Active Coordinate Pill matching Reference Image 3 */}
+      {/* Map Header with Layer Toggle matching Reference Image */}
       <div className="map-card-header">
         <div className="map-title-group">
           <svg className="map-header-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
           </svg>
           <h2 id="map-heading" className="card-title">
-            Automatic Location Map & Layer Viewer
+            Interactive Location Map
           </h2>
         </div>
 
@@ -168,26 +297,17 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
               <span>Street / Topo</span>
             </button>
           </div>
-
-          {/* Real-time Coordinate Display Pill */}
-          {hasValidLocation && (
-            <div className="header-coords-pill" title="Current Coordinates">
-              <svg className="pill-radio-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-              </svg>
-              <span>
-                {currentLocation.latitude}°, {currentLocation.longitude}°
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
       {/* Interactive Map Viewport with explicit 450px height */}
-      <div className="map-container-wrapper" style={{ height: '450px', width: '100%' }}>
+      <div className="map-container-wrapper" style={{ height: '450px', width: '100%', position: 'relative' }}>
         <MapContainer
           center={[currentLocation.latitude, currentLocation.longitude]}
           zoom={9}
+          dragging={true}
+          touchZoom={true}
+          doubleClickZoom={true}
           scrollWheelZoom={true}
           zoomControl={true}
           style={{ height: '450px', width: '100%', borderRadius: '8px' }}
@@ -211,15 +331,18 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
             </LayersControl.BaseLayer>
           </LayersControl>
 
-          {/* Automatic camera re-centering controller & layer synchronization */}
+          {/* Automatic camera re-centering controller, dragging tracker, & layer synchronization */}
           <MapViewController
             targetLocation={currentLocation}
             zoomLevel={9}
             activeLayer={activeLayer}
             onLayerChange={setActiveLayer}
+            onCenterChange={setCenterCoords}
+            onDragEnd={onDragEnd}
+            onLocationSelect={onLocationSelect}
           />
 
-          {/* Interactive Marker at Target Coordinates */}
+          {/* Interactive Marker at Selected Coordinates */}
           {hasValidLocation && (
             <Marker
               position={[currentLocation.latitude, currentLocation.longitude]}
@@ -228,21 +351,48 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
               <Popup>
                 <div className="map-popup-content">
                   <strong>Selected Target</strong>
-                  <p>Lat: {currentLocation.latitude}°</p>
-                  <p>Lon: {currentLocation.longitude}°</p>
+                  <p>Lat: {currentLocation.latitude.toFixed(4)}°N</p>
+                  <p>Lon: {currentLocation.longitude.toFixed(4)}°E</p>
                 </div>
               </Popup>
             </Marker>
           )}
         </MapContainer>
 
-        {/* Bottom Banner Matching Reference Concept */}
-        <div className="map-reposition-banner">
-          <span className="banner-pulse-dot"></span>
-          <span>Target marker updates automatically as coordinates change</span>
+        {/* Center Crosshair / Target Reticle Overlay (Fixed at 50% 50%, non-blocking) */}
+        <div className="map-fixed-crosshair" aria-hidden="true" title="Map Center">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="22" cy="22" r="14" stroke="#ef4444" strokeWidth="2" fill="none" />
+            <circle cx="22" cy="22" r="2.5" fill="#ef4444" />
+            <line x1="22" y1="2" x2="22" y2="10" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+            <line x1="22" y1="34" x2="22" y2="42" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+            <line x1="2" y1="22" x2="10" y2="22" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+            <line x1="34" y1="22" x2="42" y2="22" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+          </svg>
         </div>
 
-        {/* Map Legend Overlay matching Reference Image 2 */}
+        {/* Top-Center Drag Hint Pill matching Reference Screenshot */}
+        <div className="map-drag-hint-pill" aria-hidden="true">
+          <div className="hint-icon-circle">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+          </div>
+          <div className="hint-text-group">
+            <span className="hint-line-primary">Drag the map with mouse or finger</span>
+            <span className="hint-line-secondary">Coordinates update in real time</span>
+          </div>
+        </div>
+
+        {/* Bottom-Center Floating Map Center Card matching Reference Screenshot */}
+        <div className="map-center-coords-card" aria-live="polite" title="Map Center Coordinates">
+          <div className="center-coords-text">
+            {centerCoords.latitude.toFixed(4)}° N , {centerCoords.longitude.toFixed(4)}° E
+          </div>
+          <div className="center-coords-sublabel">(Map Center)</div>
+        </div>
+
+        {/* Map Legend Overlay matching Reference Image (Bottom-Left) */}
         <div className="map-legend-overlay">
           <div className="legend-item">
             <span className="legend-dot dot-high"></span>
@@ -257,6 +407,18 @@ const LocationMap = ({ selectedLocation, geeTileUrl = null }) => {
             <span className="legend-text">Low Potential</span>
           </div>
         </div>
+      </div>
+
+      {/* Sub-map Guidance Bar matching Reference Screenshot */}
+      <div className="map-bottom-guidance-bar">
+        <svg className="guidance-crosshair-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="7" />
+          <line x1="12" y1="2" x2="12" y2="6" />
+          <line x1="12" y1="18" x2="12" y2="22" />
+          <line x1="2" y1="12" x2="6" y2="12" />
+          <line x1="18" y1="12" x2="22" y2="12" />
+        </svg>
+        <span>Move the map to explore different locations. Click on any location to get prediction.</span>
       </div>
     </section>
   );

@@ -19,7 +19,9 @@ import numpy as np
 
 # Path to the dataset inside backend/data
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATASET_PATH = DATA_DIR / "manganese_estimation_dataset.csv"
+DATASET_V2_PATH = DATA_DIR / "manganese_estimation_dataset_live_v2.csv"
+DATASET_V1_PATH = DATA_DIR / "manganese_estimation_dataset.csv"
+DATASET_PATH = DATASET_V2_PATH if DATASET_V2_PATH.exists() else DATASET_V1_PATH
 
 
 class DatasetService:
@@ -27,8 +29,11 @@ class DatasetService:
     Modular, read-only service for manganese estimation training/reference data.
     """
 
-    def __init__(self, dataset_path: Path = DATASET_PATH):
-        self.dataset_path = dataset_path
+    def __init__(self, dataset_path: Optional[Path] = None):
+        if dataset_path is not None:
+            self.dataset_path = dataset_path
+        else:
+            self.dataset_path = DATASET_V2_PATH if DATASET_V2_PATH.exists() else DATASET_V1_PATH
         self._df: Optional[pd.DataFrame] = None
         self._is_loaded: bool = False
         self._summary: Optional[Dict[str, Any]] = None
@@ -208,6 +213,107 @@ class DatasetService:
 
         mines_grouped.rename(columns={"Manganese_Presence": "sample_count"}, inplace=True)
         return mines_grouped.to_dict(orient="records")
+
+    def find_nearest_ore_deposit(
+        self, latitude: float, longitude: float, max_distance_km: float = 5.0
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Finds the nearest verified manganese ore outcrop (Manganese_Presence == 1)
+        in the training survey dataset. If within max_distance_km, returns proximity context
+        for geological domain awareness (Solution B).
+        """
+        if not self._load_dataset() or self._df is None:
+            return None
+
+        # Filter strictly positive ore records
+        positives = self._df[self._df["Manganese_Presence"] == 1]
+        if positives.empty:
+            return None
+
+        d_lat = positives["Latitude"] - latitude
+        d_lon = (positives["Longitude"] - longitude) * np.cos(np.radians(latitude))
+        dist_sq = d_lat ** 2 + d_lon ** 2
+        min_idx = dist_sq.idxmin()
+        closest_row = positives.loc[min_idx]
+
+        dist_deg = float(np.sqrt(dist_sq.loc[min_idx]))
+        dist_km = float(dist_deg * 111.32)
+
+        if dist_km > max_distance_km:
+            return None
+
+        mine_name = str(closest_row.get("Mine", "Known Deposit")).replace("_", " ")
+        state_name = str(closest_row.get("State", ""))
+        c_lat = round(float(closest_row.get("Latitude")), 4)
+        c_lon = round(float(closest_row.get("Longitude")), 4)
+
+        belt_map = {
+            "Telangana": "Penganga Manganese Belt",
+            "Odisha": "Jamda-Koira Manganese Belt",
+            "Karnataka": "Sandur-Ballari Manganese Belt",
+            "Andhra Pradesh": "Vizianagaram Manganese Belt",
+            "Jharkhand": "Singhbhum-Kolhan Manganese Belt",
+            "Goa": "South Goa Manganese Belt",
+            "Rajasthan": "Banswara Aravalli Belt",
+            "Madhya Pradesh": "Sausar Manganese Belt",
+            "Maharashtra": "Sausar Manganese Belt",
+        }
+        belt_name = belt_map.get(state_name, "Known Indian Manganese Belt")
+
+        # Check training dataset positives first
+        best_mine = mine_name
+        best_belt = belt_name
+        best_state = state_name
+        best_lat = c_lat
+        best_lon = c_lon
+        min_dist_km = dist_km
+
+        # Also check against comprehensive verified catalog to ensure full nationwide coverage
+        try:
+            from services.ml_service import KNOWN_MANGANESE_DEPOSITS, haversine_km
+            for dep in KNOWN_MANGANESE_DEPOSITS:
+                d = haversine_km(latitude, longitude, dep["lat"], dep["lon"])
+                if d < min_dist_km:
+                    min_dist_km = d
+                    best_mine = dep["mine"]
+                    best_belt = dep["belt"]
+                    best_state = dep["state"]
+                    best_lat = dep["lat"]
+                    best_lon = dep["lon"]
+        except Exception:
+            pass
+
+        if min_dist_km > max_distance_km:
+            return None
+
+        # Determine cardinal direction
+        d_lat_val = best_lat - latitude
+        d_lon_val = best_lon - longitude
+        direction = ""
+        if abs(d_lat_val) > 0.002:
+            direction += "North" if d_lat_val > 0 else "South"
+        if abs(d_lon_val) > 0.002:
+            direction += "East" if d_lon_val > 0 else "West"
+        dir_str = f" {direction}" if direction else ""
+
+        if min_dist_km <= 1.0:
+            msg = f"You are directly within the active {best_mine} manganese deposit zone in the {best_belt}."
+        elif min_dist_km <= 5.0:
+            msg = f"You are in the mineralized strike corridor of the {best_mine} deposit in the {best_belt}, ~{min_dist_km:.1f} km{dir_str} from the primary outcrop."
+        else:
+            msg = f"Located within the {best_belt} ({best_mine} sector), ~{min_dist_km:.1f} km{dir_str} from primary deposits at ({best_lat}, {best_lon})."
+
+        return {
+            "found": True,
+            "mine": best_mine,
+            "belt": best_belt,
+            "state": best_state,
+            "distance_km": round(min_dist_km, 2),
+            "latitude": best_lat,
+            "longitude": best_lon,
+            "deposit_potential": "High Potential (85%+)",
+            "message": msg
+        }
 
 
 # Export singleton instance

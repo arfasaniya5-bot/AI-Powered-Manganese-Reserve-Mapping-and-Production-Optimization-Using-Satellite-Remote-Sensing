@@ -14,7 +14,9 @@ from schemas.location_schema import (
     LocationRequest,
     LocationResponse,
     PredictionResponse,
-    DatasetInfoResponse
+    DatasetInfoResponse,
+    ReverseGeocodeRequest,
+    ReverseGeocodeResponse
 )
 from services.feature_service import (
     extract_location_features,
@@ -25,6 +27,7 @@ from services.feature_service import (
 )
 from services.ml_service import ml_service
 from services.dataset_service import dataset_service
+from services.geocoding_service import geocoding_service
 
 router = APIRouter(prefix="/location", tags=["Location"])
 
@@ -192,12 +195,17 @@ async def predict_ore_potential(payload: LocationRequest) -> PredictionResponse:
 
     features = extract_location_features(payload.latitude, payload.longitude)
     
-    # Task 8: Dataset vs GEE Feature Comparison
+    # Section 10: Dataset vs GEE Feature Comparison & Live Validation
+    gee_meta = features.get("_gee_metadata", {})
+    fallback_used = features.get("gee_fallback_used", False)
+    fallback_reason = features.get("gee_fallback_reason", "")
+
     print_dataset_vs_gee_comparison(
         latitude=payload.latitude,
         longitude=payload.longitude,
         gee_features=features,
-        fallback_used=False
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason
     )
     
     ml_output = ml_service.predict_manganese_potential(payload.latitude, payload.longitude, features=features)
@@ -232,6 +240,9 @@ async def predict_ore_potential(payload: LocationRequest) -> PredictionResponse:
         potential=ml_output.get("potential")
     )
 
+    # Solution B: Check for nearby verified ore deposit within exploration radius (35 km)
+    nearby_dep = dataset_service.find_nearest_ore_deposit(payload.latitude, payload.longitude, max_distance_km=35.0)
+
     return PredictionResponse(
         success=True,
         latitude=payload.latitude,
@@ -241,6 +252,27 @@ async def predict_ore_potential(payload: LocationRequest) -> PredictionResponse:
         probability_percentage=ml_output.get("probability_percentage"),
         potential=ml_output.get("potential"),
         key_factors=ml_output.get("key_factors", []),
+        nearby_deposit=nearby_dep,
         message=ml_output.get("message")
     )
+
+
+@router.post(
+    "/reverse-geocode",
+    response_model=ReverseGeocodeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reverse geocode coordinates into State, District, and Village",
+    description="Resolves real State, District, and Village names for coordinates using OpenStreetMap Nominatim."
+)
+async def reverse_geocode_endpoint(payload: ReverseGeocodeRequest) -> ReverseGeocodeResponse:
+    """
+    Reverse geocodes coordinates to identify State, District, and Village.
+    """
+    res = geocoding_service.reverse_geocode(payload.latitude, payload.longitude)
+    return ReverseGeocodeResponse(
+        state=res.get("state", "Not available"),
+        district=res.get("district", "Not available"),
+        village=res.get("village", "Not available")
+    )
+
 

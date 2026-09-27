@@ -4,7 +4,7 @@
  * Renders the persistent dark navy left navigation sidebar.
  * 
  * Why this component is required:
- * Provides unified navigation across the ManganeseInsight application.
+ * Provides unified navigation across the GeoMineAI application.
  * Using React Router's `NavLink`, the active route automatically receives
  * the 'active' CSS class, highlighting the current page without manual state tracking.
  * 
@@ -33,7 +33,7 @@ const Sidebar = () => {
             viewBox="0 0 40 32"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            aria-label="ManganeseInsight Logo"
+            aria-label="GeoMineAI Logo"
           >
             {/* Left peak: Sky Blue */}
             <path
@@ -48,7 +48,7 @@ const Sidebar = () => {
           </svg>
         </div>
         <div className="brand-text-block">
-          <span className="brand-title">ManganeseInsight</span>
+          <span className="brand-title">GeoMineAI</span>
           <span className="brand-tagline">Exploring a Sustainable Tomorrow</span>
         </div>
       </div>
@@ -119,7 +119,7 @@ const Sidebar = () => {
             }
             onClick={(e) => {
               e.preventDefault();
-              alert('ManganeseInsight: Using AI/ML and Space Technology to Identify Manganese Reserves.');
+              alert('GeoMineAI: Using AI/ML and Space Technology to Identify Manganese Reserves.');
             }}
           >
             <svg className="nav-icon" viewBox="0 0 24 24" fill="currentColor">

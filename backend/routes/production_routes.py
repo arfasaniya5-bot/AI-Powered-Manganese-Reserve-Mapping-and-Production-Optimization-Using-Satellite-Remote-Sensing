@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from services.production_service import production_service
 from services.production_dataset_service import production_dataset_service
 from services.production_ml_service import production_ml_service
+from services.weather_service import weather_service
 from services.db_service import db_service
 from schemas.production_schema import (
     ProductionHealthResponse,
@@ -24,6 +25,7 @@ from schemas.production_schema import (
     DatasetRecordsResponse,
     ProductionShortfallPredictionRequest,
     ProductionShortfallPredictionResponse,
+    WeatherForecastResponse,
 )
 
 router = APIRouter(
@@ -160,6 +162,42 @@ async def get_production_mines():
     """Returns available mine names for filtering."""
     mines = production_service.get_mines_list()
     return {"success": True, "mines": mines}
+
+
+@router.get(
+    "/weather-forecast",
+    response_model=WeatherForecastResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get live Open-Meteo weather forecast and soil moisture for mine site or coordinates"
+)
+async def get_weather_forecast(
+    mine: Optional[str] = Query(None, description="Mine site name (e.g. Balaghat, Gumgaon, Ukwa)"),
+    latitude: Optional[float] = Query(None, description="Latitude coordinate"),
+    longitude: Optional[float] = Query(None, description="Longitude coordinate"),
+    date: Optional[str] = Query(None, description="Forecast date (YYYY-MM-DD or DD-MM-YYYY)")
+) -> WeatherForecastResponse:
+    """
+    Returns live weather metrics (temperature, wind speed, relative humidity, precipitation,
+    depth-weighted soil moisture) fetched from Open-Meteo API and adapted for ML prediction.
+    """
+    try:
+        mine_str = mine if isinstance(mine, str) else None
+        lat_flt = float(latitude) if isinstance(latitude, (int, float)) else None
+        lon_flt = float(longitude) if isinstance(longitude, (int, float)) else None
+        date_str = date if isinstance(date, str) else None
+
+        forecast = weather_service.get_forecast(
+            mine=mine_str,
+            latitude=lat_flt,
+            longitude=lon_flt,
+            target_date=date_str
+        )
+        return WeatherForecastResponse(**forecast)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch live weather forecast: {exc}"
+        )
 
 
 @router.get(
